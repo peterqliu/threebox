@@ -1,6 +1,5 @@
 // modify the three.js library for floating-point precision
 
-
 function threebox(map){
 
 	var basePlaneDimension = this.basePlaneDimension = 512;
