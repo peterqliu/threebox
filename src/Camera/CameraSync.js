@@ -16,8 +16,9 @@ function CameraSync(map, camera, world) {
     this.world.matrixAutoUpdate = false;
 
     // Listen for move events from the map and update the Three.js camera
-    var thisthis = this;
-    this.map.on('move', function() { thisthis.updateCamera(); });
+    var _this = this;
+    this.map.on('move', function() { _this.updateCamera(); });
+    this.updateCamera();
 }
 
 CameraSync.prototype = {
