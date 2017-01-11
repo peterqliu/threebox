@@ -8782,19 +8782,21 @@ var CameraSync = require("./Camera/CameraSync.js");
 var utils = require("./Utils/Utils.js");
 var AnimationManager = require("./Animation/AnimationManager.js");
 
-
 function Threebox(map){
     this.map = map;
 
     // Set up a THREE.js scene
     this.renderer = new THREE.WebGLRenderer( { alpha: true, antialias:true} );
-    this.renderer.setSize( window.innerWidth, window.innerHeight );
+    this.renderer.setSize( this.map.transform.width, this.map.transform.height );
     this.renderer.shadowMap.enabled = true;
 
     this.map._container.appendChild( this.renderer.domElement );
     this.renderer.domElement.style["position"] = "relative";
     this.renderer.domElement.style["pointer-events"] = "none";
     this.renderer.domElement.style["z-index"] = 1000;
+
+    var _this = this;
+    this.map.on("resize", function() { _this.renderer.setSize(_this.map.transform.width, _this.map.transform.height); } );
 
 
     this.scene = new THREE.Scene();
@@ -8815,32 +8817,31 @@ function Threebox(map){
 Threebox.prototype = {
     update: function(timestamp) {
         // Update any animations
-        //this.animationManager.update(timestamp);
+        this.animationManager.update(timestamp);
 
         // Render the scene
         this.renderer.render( this.scene, this.camera );
 
         // Run this again next frame
         var thisthis = this;
-        requestAnimationFrame(function() { thisthis.update(); } );
+        requestAnimationFrame(function(timestamp) { thisthis.update(timestamp); } );
     },
 
     projectToWorld: function (coords){
         // coord setup
-        var merc = new sphericalmercator({
-            size: ThreeboxConstants.WORLD_SIZE
-        });
+        var merc = new sphericalmercator({  size: ThreeboxConstants.WORLD_SIZE });
 
-        var rawPx = merc.px(coords,0);
+        var projected = merc.forward(coords);
+        projected[0] *= ThreeboxConstants.PROJECTION_WORLD_SIZE;
+        projected[1] *= -ThreeboxConstants.PROJECTION_WORLD_SIZE;
 
-        var pxCoords = [rawPx[0] - ThreeboxConstants.WORLD_SIZE/2, rawPx[1] - ThreeboxConstants.WORLD_SIZE/2];
         
         //z dimension
         var height = coords[2] || 0;
         var pixelsPerMeter = Math.abs(ThreeboxConstants.WORLD_SIZE * Math.cos(coords[1]*Math.PI/180)/40075000 );
-        pxCoords.push( height * pixelsPerMeter )
+        projected.push( height * pixelsPerMeter );
 
-        return pxCoords
+        return projected;
     },
     projectToScreen: function(coords) {
         console.log("WARNING: Projecting to screen coordinates is not yet implemented");
@@ -8872,7 +8873,7 @@ Threebox.prototype = {
         this.world.add(obj);
 
         // Bestow this mesh with animation superpowers and keeps track of its mvoements in the global animation queue
-        //this.animationManager.enroll(obj); 
+        this.animationManager.enroll(obj); 
 
         return obj;
     },
@@ -8970,7 +8971,8 @@ module.exports.degreeify = degreeify;
 WORLD_SIZE = 512;
 
 module.exports = exports = {
-    WORLD_SIZE: WORLD_SIZE
+    WORLD_SIZE: WORLD_SIZE,
+    PROJECTION_WORLD_SIZE: WORLD_SIZE / 20037508.342789244 / 2
 }
 },{}],84:[function(require,module,exports){
 (function (global, factory) {

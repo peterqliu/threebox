@@ -55,13 +55,14 @@
             aircraft = new THREE.Mesh( geometry, material );
             // geometry.computeFaceNormals();
             // geometry.computeVertexNormals();
-            var planePosition = [-122.41361349821089,37.775718243274575,0];
+            var planePosition = [-122.41356,37.77577,500];
             
-            var aircraftSize = 0.001;
+            var aircraftSize = 0.0001;
             aircraft.scale.set(aircraftSize, aircraftSize, aircraftSize);
 
             // Add the model to the threebox scenegraph at a specific geographic coordinate
             threebox.addAtCoordinate(aircraft, planePosition);
+            
             //threebox.scene.add(aircraft);
         });
 
