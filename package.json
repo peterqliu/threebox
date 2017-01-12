@@ -12,7 +12,6 @@
         "url": "https://github.com/peterqliu/threebox/issues"
     },
     "dependencies": {
-        "@mapbox/sphericalmercator": "*",
         "@turf/turf": "*"
     },
     "scripts": {

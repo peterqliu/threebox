@@ -8778,7 +8778,6 @@ module.exports = exports = CameraSync;
 },{"../Threebox.js":81,"../Utils/Utils.js":82,"../constants.js":83,"../three64.js":84}],81:[function(require,module,exports){
 var THREE = require("./three64.js");    // Modified version to use 64-bit double precision floats for matrix math
 var ThreeboxConstants = require("./constants.js");
-var sphericalmercator = require("@mapbox/sphericalmercator");
 var CameraSync = require("./Camera/CameraSync.js");
 var utils = require("./Utils/Utils.js");
 var AnimationManager = require("./Animation/AnimationManager.js");
@@ -8829,20 +8828,34 @@ Threebox.prototype = {
     },
 
     projectToWorld: function (coords){
-        // coord setup
-        var merc = new sphericalmercator({  size: ThreeboxConstants.WORLD_SIZE });
+        // Spherical mercator forward projection, re-scaling to WORLD_SIZE
+        var projected = [
+             ThreeboxConstants.MERCATOR_A * coords[0] * ThreeboxConstants.DEG2RAD * ThreeboxConstants.PROJECTION_WORLD_SIZE,
+            -ThreeboxConstants.MERCATOR_A * Math.log(Math.tan((Math.PI*0.25) + (0.5 * coords[1] * ThreeboxConstants.DEG2RAD))) * ThreeboxConstants.PROJECTION_WORLD_SIZE
+        ];
+     
+        var pixelsPerMeter = this.projectedUnitsPerMeter(coords[1]);
 
-        var projected = merc.forward(coords);
-        projected[0] *= ThreeboxConstants.PROJECTION_WORLD_SIZE;
-        projected[1] *= -ThreeboxConstants.PROJECTION_WORLD_SIZE;
-
-        
         //z dimension
         var height = coords[2] || 0;
-        var pixelsPerMeter = Math.abs(ThreeboxConstants.WORLD_SIZE * Math.cos(coords[1]*Math.PI/180)/40075000 );
         projected.push( height * pixelsPerMeter );
 
-        return projected;
+        var result = new THREE.Vector3(projected[0], projected[1], projected[2]);
+
+        return result;
+    },
+    projectedUnitsPerMeter: function(latitude) {
+        return Math.abs(ThreeboxConstants.WORLD_SIZE * Math.cos(latitude*Math.PI/180)/ThreeboxConstants.EARTH_CIRCUMFERENCE);
+    },
+    _scaleVerticesToMeters: function(centerLatLng, vertices) {
+        var pixelsPerMeter = this.projectedUnitsPerMeter(centerLatLng[1]);
+        var centerProjected = this.projectToWorld(centerLatLng);
+
+        for (var i = 0; i < vertices.length; i++) {
+            vertices[i].multiplyScalar(pixelsPerMeter);
+        }
+
+        return vertices;
     },
     projectToScreen: function(coords) {
         console.log("WARNING: Projecting to screen coordinates is not yet implemented");
@@ -8862,12 +8875,15 @@ Threebox.prototype = {
             TODO: detect object type and actually do the meter-offset calculations for meshes
         */
 
-        var position = this.projectToWorld(lnglat);
+        obj.position.copy(this.projectToWorld(lnglat));
 
-        console.log(position);
-        obj.position.x = position[0];
-        obj.position.y = position[1];
-        obj.position.z = position[2];
+        // Re-project mesh coordinates to mercator meters
+        var v;
+        console.time("Project coords");
+        this._scaleVerticesToMeters(lnglat, obj.geometry.vertices);
+        console.timeEnd("Project coords");
+
+        console.log(obj.position);
 
         obj.coordinates = lnglat;
 
@@ -8911,7 +8927,7 @@ Threebox.prototype = {
 module.exports = exports = Threebox;
 
 
-},{"./Animation/AnimationManager.js":79,"./Camera/CameraSync.js":80,"./Utils/Utils.js":82,"./constants.js":83,"./three64.js":84,"@mapbox/sphericalmercator":4}],82:[function(require,module,exports){
+},{"./Animation/AnimationManager.js":79,"./Camera/CameraSync.js":80,"./Utils/Utils.js":82,"./constants.js":83,"./three64.js":84}],82:[function(require,module,exports){
 var THREE = require("../three64.js");    // Modified version to use 64-bit double precision floats for matrix math
 
 function prettyPrintMatrix(uglymatrix){
@@ -8969,11 +8985,17 @@ module.exports.makePerspectiveMatrix = makePerspectiveMatrix;
 module.exports.radify = radify;
 module.exports.degreeify = degreeify;
 },{"../three64.js":84}],83:[function(require,module,exports){
-WORLD_SIZE = 512;
+const WORLD_SIZE = 512;
+const MERCATOR_A = 6378137.0;
 
 module.exports = exports = {
     WORLD_SIZE: WORLD_SIZE,
-    PROJECTION_WORLD_SIZE: WORLD_SIZE / 20037508.342789244 / 2
+    PROJECTION_WORLD_SIZE: WORLD_SIZE / (MERCATOR_A * Math.PI) / 2,
+    MERCATOR_A: MERCATOR_A, // 900913 projection property
+    DEG2RAD: Math.PI / 180,
+    RAD2DEG: 180 / Math.PI,
+    EARTH_CIRCUMFERENCE: 40075000, // In meters
+
 }
 },{}],84:[function(require,module,exports){
 (function (global, factory) {
