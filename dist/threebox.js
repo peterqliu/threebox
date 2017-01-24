@@ -1,7 +1,7 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 Threebox = require("./src/Threebox.js");
 THREE = require("./src/three64.js");
-},{"./src/Threebox.js":81,"./src/three64.js":84}],2:[function(require,module,exports){
+},{"./src/Threebox.js":82,"./src/three64.js":85}],2:[function(require,module,exports){
 var wgs84 = require('wgs84');
 
 module.exports.geometry = geometry;
@@ -91,7 +91,7 @@ function ringArea(coords) {
 function rad(_) {
     return _ * Math.PI / 180;
 }
-},{"wgs84":78}],3:[function(require,module,exports){
+},{"wgs84":79}],3:[function(require,module,exports){
 module.exports = normalize;
 
 var types = {
@@ -137,180 +137,6 @@ function normalize(gj) {
 }
 
 },{}],4:[function(require,module,exports){
-var SphericalMercator = (function(){
-
-// Closures including constants and other precalculated values.
-var cache = {},
-    EPSLN = 1.0e-10,
-    D2R = Math.PI / 180,
-    R2D = 180 / Math.PI,
-    // 900913 properties.
-    A = 6378137.0,
-    MAXEXTENT = 20037508.342789244;
-
-
-// SphericalMercator constructor: precaches calculations
-// for fast tile lookups.
-function SphericalMercator(options) {
-    options = options || {};
-    this.size = options.size || 256;
-    if (!cache[this.size]) {
-        var size = this.size;
-        var c = cache[this.size] = {};
-        c.Bc = [];
-        c.Cc = [];
-        c.zc = [];
-        c.Ac = [];
-        for (var d = 0; d < 30; d++) {
-            c.Bc.push(size / 360);
-            c.Cc.push(size / (2 * Math.PI));
-            c.zc.push(size / 2);
-            c.Ac.push(size);
-            size *= 2;
-        }
-    }
-    this.Bc = cache[this.size].Bc;
-    this.Cc = cache[this.size].Cc;
-    this.zc = cache[this.size].zc;
-    this.Ac = cache[this.size].Ac;
-};
-
-// Convert lon lat to screen pixel value
-//
-// - `ll` {Array} `[lon, lat]` array of geographic coordinates.
-// - `zoom` {Number} zoom level.
-SphericalMercator.prototype.px = function(ll, zoom) {
-    var d = this.zc[zoom];
-    var f = Math.min(Math.max(Math.sin(D2R * ll[1]), -0.9999), 0.9999);
-    var x = Math.round(d + ll[0] * this.Bc[zoom]);
-    var y = Math.round(d + 0.5 * Math.log((1 + f) / (1 - f)) * (-this.Cc[zoom]));
-    (x > this.Ac[zoom]) && (x = this.Ac[zoom]);
-    (y > this.Ac[zoom]) && (y = this.Ac[zoom]);
-    //(x < 0) && (x = 0);
-    //(y < 0) && (y = 0);
-    return [x, y];
-};
-
-// Convert screen pixel value to lon lat
-//
-// - `px` {Array} `[x, y]` array of geographic coordinates.
-// - `zoom` {Number} zoom level.
-SphericalMercator.prototype.ll = function(px, zoom) {
-    var g = (px[1] - this.zc[zoom]) / (-this.Cc[zoom]);
-    var lon = (px[0] - this.zc[zoom]) / this.Bc[zoom];
-    var lat = R2D * (2 * Math.atan(Math.exp(g)) - 0.5 * Math.PI);
-    return [lon, lat];
-};
-
-// Convert tile xyz value to bbox of the form `[w, s, e, n]`
-//
-// - `x` {Number} x (longitude) number.
-// - `y` {Number} y (latitude) number.
-// - `zoom` {Number} zoom.
-// - `tms_style` {Boolean} whether to compute using tms-style.
-// - `srs` {String} projection for resulting bbox (WGS84|900913).
-// - `return` {Array} bbox array of values in form `[w, s, e, n]`.
-SphericalMercator.prototype.bbox = function(x, y, zoom, tms_style, srs) {
-    // Convert xyz into bbox with srs WGS84
-    if (tms_style) {
-        y = (Math.pow(2, zoom) - 1) - y;
-    }
-    // Use +y to make sure it's a number to avoid inadvertent concatenation.
-    var ll = [x * this.size, (+y + 1) * this.size]; // lower left
-    // Use +x to make sure it's a number to avoid inadvertent concatenation.
-    var ur = [(+x + 1) * this.size, y * this.size]; // upper right
-    var bbox = this.ll(ll, zoom).concat(this.ll(ur, zoom));
-
-    // If web mercator requested reproject to 900913.
-    if (srs === '900913') {
-        return this.convert(bbox, '900913');
-    } else {
-        return bbox;
-    }
-};
-
-// Convert bbox to xyx bounds
-//
-// - `bbox` {Number} bbox in the form `[w, s, e, n]`.
-// - `zoom` {Number} zoom.
-// - `tms_style` {Boolean} whether to compute using tms-style.
-// - `srs` {String} projection of input bbox (WGS84|900913).
-// - `@return` {Object} XYZ bounds containing minX, maxX, minY, maxY properties.
-SphericalMercator.prototype.xyz = function(bbox, zoom, tms_style, srs) {
-    // If web mercator provided reproject to WGS84.
-    if (srs === '900913') {
-        bbox = this.convert(bbox, 'WGS84');
-    }
-
-    var ll = [bbox[0], bbox[1]]; // lower left
-    var ur = [bbox[2], bbox[3]]; // upper right
-    var px_ll = this.px(ll, zoom);
-    var px_ur = this.px(ur, zoom);
-    // Y = 0 for XYZ is the top hence minY uses px_ur[1].
-    var x = [ Math.floor(px_ll[0] / this.size), Math.floor((px_ur[0] - 1) / this.size) ];
-    var y = [ Math.floor(px_ur[1] / this.size), Math.floor((px_ll[1] - 1) / this.size) ];
-    var bounds = {
-        minX: Math.min.apply(Math, x) < 0 ? 0 : Math.min.apply(Math, x),
-        minY: Math.min.apply(Math, y) < 0 ? 0 : Math.min.apply(Math, y),
-        maxX: Math.max.apply(Math, x),
-        maxY: Math.max.apply(Math, y)
-    };
-    if (tms_style) {
-        var tms = {
-            minY: (Math.pow(2, zoom) - 1) - bounds.maxY,
-            maxY: (Math.pow(2, zoom) - 1) - bounds.minY
-        };
-        bounds.minY = tms.minY;
-        bounds.maxY = tms.maxY;
-    }
-    return bounds;
-};
-
-// Convert projection of given bbox.
-//
-// - `bbox` {Number} bbox in the form `[w, s, e, n]`.
-// - `to` {String} projection of output bbox (WGS84|900913). Input bbox
-//   assumed to be the "other" projection.
-// - `@return` {Object} bbox with reprojected coordinates.
-SphericalMercator.prototype.convert = function(bbox, to) {
-    if (to === '900913') {
-        return this.forward(bbox.slice(0, 2)).concat(this.forward(bbox.slice(2,4)));
-    } else {
-        return this.inverse(bbox.slice(0, 2)).concat(this.inverse(bbox.slice(2,4)));
-    }
-};
-
-// Convert lon/lat values to 900913 x/y.
-SphericalMercator.prototype.forward = function(ll) {
-    var xy = [
-        A * ll[0] * D2R,
-        A * Math.log(Math.tan((Math.PI*0.25) + (0.5 * ll[1] * D2R)))
-    ];
-    // if xy value is beyond maxextent (e.g. poles), return maxextent.
-    (xy[0] > MAXEXTENT) && (xy[0] = MAXEXTENT);
-    (xy[0] < -MAXEXTENT) && (xy[0] = -MAXEXTENT);
-    (xy[1] > MAXEXTENT) && (xy[1] = MAXEXTENT);
-    (xy[1] < -MAXEXTENT) && (xy[1] = -MAXEXTENT);
-    return xy;
-};
-
-// Convert 900913 x/y values to lon/lat.
-SphericalMercator.prototype.inverse = function(xy) {
-    return [
-        (xy[0] * R2D / A),
-        ((Math.PI*0.5) - 2.0 * Math.atan(Math.exp(-xy[1] / A))) * R2D
-    ];
-};
-
-return SphericalMercator;
-
-})();
-
-if (typeof module !== 'undefined' && typeof exports !== 'undefined') {
-    module.exports = exports = SphericalMercator;
-}
-
-},{}],5:[function(require,module,exports){
 var measureDistance = require('@turf/distance');
 var point = require('@turf/helpers').point;
 var bearing = require('@turf/bearing');
@@ -374,7 +200,7 @@ module.exports = function (line, distance, units) {
     return point(coords[coords.length - 1]);
 };
 
-},{"@turf/bearing":9,"@turf/destination":21,"@turf/distance":23,"@turf/helpers":27}],6:[function(require,module,exports){
+},{"@turf/bearing":8,"@turf/destination":20,"@turf/distance":22,"@turf/helpers":26}],5:[function(require,module,exports){
 var geometryArea = require('@mapbox/geojson-area').geometry;
 
 /**
@@ -437,7 +263,7 @@ function area(input) {
 }
 module.exports = area;
 
-},{"@mapbox/geojson-area":2}],7:[function(require,module,exports){
+},{"@mapbox/geojson-area":2}],6:[function(require,module,exports){
 var polygon = require('@turf/helpers').polygon;
 
 /**
@@ -469,7 +295,7 @@ module.exports = function (bbox) {
     ]]);
 };
 
-},{"@turf/helpers":27}],8:[function(require,module,exports){
+},{"@turf/helpers":26}],7:[function(require,module,exports){
 var each = require('@turf/meta').coordEach;
 
 /**
@@ -479,12 +305,12 @@ var each = require('@turf/meta').coordEach;
  * @param {(Feature|FeatureCollection)} geojson input features
  * @return {Array<number>} bbox extent in [minX, minY, maxX, maxY] order
  * @example
- * var pt1 = point([114.175329, 22.2524])
- * var pt2 = point([114.170007, 22.267969])
- * var pt3 = point([114.200649, 22.274641])
- * var pt4 = point([114.200649, 22.274641])
- * var pt5 = point([114.186744, 22.265745])
- * var features = featureCollection([pt1, pt2, pt3, pt4, pt5])
+ * var pt1 = turf.point([114.175329, 22.2524])
+ * var pt2 = turf.point([114.170007, 22.267969])
+ * var pt3 = turf.point([114.200649, 22.274641])
+ * var pt4 = turf.point([114.200649, 22.274641])
+ * var pt5 = turf.point([114.186744, 22.265745])
+ * var features = turf.featureCollection([pt1, pt2, pt3, pt4, pt5])
  *
  * var bbox = turf.bbox(features);
  *
@@ -505,7 +331,7 @@ module.exports = function (geojson) {
     return bbox;
 };
 
-},{"@turf/meta":39}],9:[function(require,module,exports){
+},{"@turf/meta":38}],8:[function(require,module,exports){
 var getCoord = require('@turf/invariant').getCoord;
 //http://en.wikipedia.org/wiki/Haversine_formula
 //http://www.movable-type.co.uk/scripts/latlong.html
@@ -569,7 +395,7 @@ module.exports = function (start, end) {
     return bearing;
 };
 
-},{"@turf/invariant":32}],10:[function(require,module,exports){
+},{"@turf/invariant":31}],9:[function(require,module,exports){
 var linestring = require('@turf/helpers').lineString;
 var Spline = require('./spline.js');
 
@@ -637,7 +463,7 @@ module.exports = function (line, resolution, sharpness) {
     return lineOut;
 };
 
-},{"./spline.js":11,"@turf/helpers":27}],11:[function(require,module,exports){
+},{"./spline.js":10,"@turf/helpers":26}],10:[function(require,module,exports){
 /* eslint-disable */
 
  /**
@@ -773,7 +599,7 @@ Spline.prototype.pos = function (time) {
 
 module.exports = Spline;
 
-},{}],12:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 // http://stackoverflow.com/questions/839899/how-do-i-calculate-a-point-on-a-circles-circumference
 // radians = degrees * (pi/180)
 // https://github.com/bjornharrtell/jsts/blob/master/examples/buffer.html
@@ -804,7 +630,7 @@ var normalize = require('@mapbox/geojson-normalize');
  * var unit = 'miles';
  *
  * var buffered = turf.buffer(pt, 500, unit);
- * var result = turf.featurecollection([buffered, pt]);
+ * var result = turf.featureCollection([buffered, pt]);
  *
  * //=result
  */
@@ -835,7 +661,7 @@ function bufferOp(feature, radius) {
     };
 }
 
-},{"@mapbox/geojson-normalize":3,"@turf/helpers":27,"jsts":67}],13:[function(require,module,exports){
+},{"@mapbox/geojson-normalize":3,"@turf/helpers":26,"jsts":66}],12:[function(require,module,exports){
 var each = require('@turf/meta').coordEach,
     centroid = require('@turf/centroid'),
     convex = require('@turf/convex'),
@@ -1021,7 +847,7 @@ function centerOfMass(fc) {
 
 module.exports = centerOfMass;
 
-},{"@turf/centroid":15,"@turf/convex":20,"@turf/explode":25,"@turf/helpers":27,"@turf/meta":39}],14:[function(require,module,exports){
+},{"@turf/centroid":14,"@turf/convex":19,"@turf/explode":24,"@turf/helpers":26,"@turf/meta":38}],13:[function(require,module,exports){
 var bbox = require('@turf/bbox'),
     point = require('@turf/helpers').point;
 
@@ -1143,7 +969,7 @@ module.exports = function (layer) {
     return point([x, y]);
 };
 
-},{"@turf/bbox":8,"@turf/helpers":27}],15:[function(require,module,exports){
+},{"@turf/bbox":7,"@turf/helpers":26}],14:[function(require,module,exports){
 var each = require('@turf/meta').coordEach;
 var point = require('@turf/helpers').point;
 
@@ -1191,7 +1017,7 @@ module.exports = function (features) {
     return point([xSum / len, ySum / len]);
 };
 
-},{"@turf/helpers":27,"@turf/meta":39}],16:[function(require,module,exports){
+},{"@turf/helpers":26,"@turf/meta":38}],15:[function(require,module,exports){
 var destination = require('@turf/destination');
 var helpers = require('@turf/helpers');
 var polygon = helpers.polygon;
@@ -1206,7 +1032,7 @@ var polygon = helpers.polygon;
  * @param {string} [units=kilometers] miles, kilometers, degrees, or radians
  * @returns {Feature<Polygon>} circle polygon
  * @example
- * var center = point([-75.343, 39.984]);
+ * var center = turf.point([-75.343, 39.984]);
  * var radius = 5;
  * var steps = 10;
  * var units = 'kilometers';
@@ -1228,8 +1054,10 @@ module.exports = function (center, radius, steps, units) {
     return polygon([coordinates]);
 };
 
-},{"@turf/destination":21,"@turf/helpers":27}],17:[function(require,module,exports){
+},{"@turf/destination":20,"@turf/helpers":26}],16:[function(require,module,exports){
+var turfbbox = require('@turf/bbox');
 var inside = require('@turf/inside');
+var rbush = require('rbush');
 
 /**
  * Merges a specified property from a FeatureCollection of points into a
@@ -1258,17 +1086,33 @@ var inside = require('@turf/inside');
  *
  * collected.features[0].properties.values // => [200, 600]);
  */
-module.exports = function collect(polygons, points, inProperty, outProperty) {
+module.exports = function (polygons, points, inProperty, outProperty) {
+    var rtree = rbush(6);
+
+    var treeItems = points.features.map(function (item) {
+        return {
+            minX: item.geometry.coordinates[0],
+            minY: item.geometry.coordinates[1],
+            maxX: item.geometry.coordinates[0],
+            maxY: item.geometry.coordinates[1],
+            property: item.properties[inProperty]
+        };
+    });
+
+    rtree.load(treeItems);
     polygons.features.forEach(function (poly) {
-        var values = points.features.filter(function (pt) {
-            return inside(pt, poly);
-        }).map(function (pt) {
-            return pt.properties[inProperty];
-        });
 
         if (!poly.properties) {
             poly.properties = {};
         }
+        var bbox = turfbbox(poly);
+        var potentialPoints = rtree.search({minX: bbox[0], minY: bbox[1], maxX: bbox[2], maxY: bbox[3]});
+        var values = [];
+        potentialPoints.forEach(function (pt) {
+            if (inside({'type': 'Point', 'coordinates': [pt.minX, pt.minY]}, poly)) {
+                values.push(pt.property);
+            }
+        });
 
         poly.properties[outProperty] = values;
     });
@@ -1276,7 +1120,7 @@ module.exports = function collect(polygons, points, inProperty, outProperty) {
     return polygons;
 };
 
-},{"@turf/inside":30}],18:[function(require,module,exports){
+},{"@turf/bbox":7,"@turf/inside":29,"rbush":69}],17:[function(require,module,exports){
 var meta = require('@turf/meta');
 
 /**
@@ -1367,7 +1211,7 @@ module.exports = function (fc) {
     };
 };
 
-},{"@turf/meta":39}],19:[function(require,module,exports){
+},{"@turf/meta":38}],18:[function(require,module,exports){
 // 1. run tin on points
 // 2. calculate lenth of all edges and area of all triangles
 // 3. remove triangles that fail the max length test
@@ -1387,7 +1231,7 @@ var distance = require('@turf/distance');
  * hull to become concave (in miles)
  * @param {string} [units=kilometers] can be degrees, radians, miles, or kilometers
  * @returns {Feature<Polygon>} a concave hull
- * @throws {Error} if maxEdge parameter is missing
+ * @throws {Error} if maxEdge parameter is missing or unable to compute hull
  * @example
  * var points = {
  *   "type": "FeatureCollection",
@@ -1454,6 +1298,9 @@ function concave(points, maxEdge, units) {
     var tinPolys = tin(points);
     var filteredPolys = tinPolys.features.filter(filterTriangles);
     tinPolys.features = filteredPolys;
+    if (tinPolys.features.length < 1) {
+        throw new Error('too few polygons found to compute concave hull');
+    }
 
     function filterTriangles(triangle) {
         var pt1 = triangle.geometry.coordinates[0][0];
@@ -1483,7 +1330,7 @@ function merge(polygons) {
 
 module.exports = concave;
 
-},{"@turf/distance":23,"@turf/tin":53,"@turf/union":56}],20:[function(require,module,exports){
+},{"@turf/distance":22,"@turf/tin":52,"@turf/union":55}],19:[function(require,module,exports){
 var each = require('@turf/meta').coordEach,
     convexHull = require('convex-hull'),
     polygon = require('@turf/helpers').polygon;
@@ -1582,7 +1429,7 @@ module.exports = function (feature) {
     return undefined;
 };
 
-},{"@turf/helpers":27,"@turf/meta":39,"convex-hull":60}],21:[function(require,module,exports){
+},{"@turf/helpers":26,"@turf/meta":38,"convex-hull":59}],20:[function(require,module,exports){
 //http://en.wikipedia.org/wiki/Haversine_formula
 //http://www.movable-type.co.uk/scripts/latlong.html
 var getCoord = require('@turf/invariant').getCoord;
@@ -1643,7 +1490,7 @@ module.exports = function (from, distance, bearing, units) {
     return point([radians2degrees * longitude2, radians2degrees * latitude2]);
 };
 
-},{"@turf/helpers":27,"@turf/invariant":32}],22:[function(require,module,exports){
+},{"@turf/helpers":26,"@turf/invariant":31}],21:[function(require,module,exports){
 // depend on jsts for now https://github.com/bjornharrtell/jsts/blob/master/examples/overlay.html
 var jsts = require('jsts');
 
@@ -1739,7 +1586,7 @@ module.exports = function (p1, p2) {
     };
 };
 
-},{"jsts":67}],23:[function(require,module,exports){
+},{"jsts":66}],22:[function(require,module,exports){
 var getCoord = require('@turf/invariant').getCoord;
 var radiansToDistance = require('@turf/helpers').radiansToDistance;
 //http://en.wikipedia.org/wiki/Haversine_formula
@@ -1801,7 +1648,7 @@ module.exports = function (from, to, units) {
     return radiansToDistance(2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)), units);
 };
 
-},{"@turf/helpers":27,"@turf/invariant":32}],24:[function(require,module,exports){
+},{"@turf/helpers":26,"@turf/invariant":31}],23:[function(require,module,exports){
 var bbox = require('@turf/bbox');
 var bboxPolygon = require('@turf/bbox-polygon');
 
@@ -1861,7 +1708,7 @@ module.exports = function (features) {
     return bboxPolygon(bbox(features));
 };
 
-},{"@turf/bbox":8,"@turf/bbox-polygon":7}],25:[function(require,module,exports){
+},{"@turf/bbox":7,"@turf/bbox-polygon":6}],24:[function(require,module,exports){
 var featureCollection = require('@turf/helpers').featureCollection;
 var each = require('@turf/meta').coordEach;
 var point = require('@turf/helpers').point;
@@ -1906,7 +1753,7 @@ module.exports = function (geojson) {
     return featureCollection(points);
 };
 
-},{"@turf/helpers":27,"@turf/meta":39}],26:[function(require,module,exports){
+},{"@turf/helpers":26,"@turf/meta":38}],25:[function(require,module,exports){
 var coordEach = require('@turf/meta').coordEach;
 
 /**
@@ -1944,7 +1791,7 @@ module.exports = function flip(input) {
     return input;
 };
 
-},{"@turf/meta":39}],27:[function(require,module,exports){
+},{"@turf/meta":38}],26:[function(require,module,exports){
 /**
  * Wraps a GeoJSON {@link Geometry} in a GeoJSON {@link Feature}.
  *
@@ -2162,7 +2009,7 @@ module.exports.multiPoint = function (coordinates, properties) {
  * @returns {Feature<MultiPolygon>} a multipolygon feature
  * @throws {Error} if no coordinates are passed
  * @example
- * var multiPoly = turf.multiPolygon([[[[0,0],[0,10],[10,10],[10,0],[0,0]]]);
+ * var multiPoly = turf.multiPolygon([[[[0,0],[0,10],[10,10],[10,0],[0,0]]]]);
  *
  * //=multiPoly
  *
@@ -2270,7 +2117,7 @@ module.exports.distanceToDegrees = function (distance, units) {
     return (distance / factor) * 57.2958;
 };
 
-},{}],28:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 var point = require('@turf/helpers').point;
 var polygon = require('@turf/helpers').polygon;
 var distance = require('@turf/distance');
@@ -2402,7 +2249,7 @@ function hexTriangles(center, rx, ry) {
     return triangles;
 }
 
-},{"@turf/distance":23,"@turf/helpers":27}],29:[function(require,module,exports){
+},{"@turf/distance":22,"@turf/helpers":26}],28:[function(require,module,exports){
 var distance = require('@turf/distance');
 var squareGrid = require('@turf/square-grid');
 var centroid = require('@turf/centroid');
@@ -2415,6 +2262,7 @@ var bbox = require('@turf/bbox');
  * It finds application when in need of creating a continuous surface (i.e. rainfall, temperature, chemical dispersion surface...)
  * from a set of spatially scattered points.
  *
+ * @name   idw
  * @param  {FeatureCollection<Point>} controlPoints Sampled points with known value
  * @param  {string} valueField    GeoJSON field containing the known value to interpolate on
  * @param  {number} b             Exponent regulating the distance-decay weighting
@@ -2422,7 +2270,7 @@ var bbox = require('@turf/bbox');
  * @param  {string} [units=kilometers] used in calculating cellSize, can be degrees, radians, miles, or kilometers
  * @return {FeatureCollection<Polygon>} grid A grid of polygons with a property field "IDW"
  */
-module.exports = function (controlPoints, valueField, b, cellWidth, units) {
+module.exports = function idw(controlPoints, valueField, b, cellWidth, units) {
     // check if field containing data exists..
     var filtered = controlPoints.features.filter(function (feature) {
         return feature.properties &&
@@ -2455,7 +2303,7 @@ module.exports = function (controlPoints, valueField, b, cellWidth, units) {
     }
 };
 
-},{"@turf/bbox":8,"@turf/centroid":15,"@turf/distance":23,"@turf/square-grid":49}],30:[function(require,module,exports){
+},{"@turf/bbox":7,"@turf/centroid":14,"@turf/distance":22,"@turf/square-grid":48}],29:[function(require,module,exports){
 var invariant = require('@turf/invariant');
 
 // http://en.wikipedia.org/wiki/Even%E2%80%93odd_rule
@@ -2471,8 +2319,8 @@ var invariant = require('@turf/invariant');
  * @param {Feature<(Polygon|MultiPolygon)>} polygon input polygon or multipolygon
  * @return {boolean} `true` if the Point is inside the Polygon; `false` if the Point is not inside the Polygon
  * @example
- * var pt = point([-77, 44]);
- * var poly = polygon([[
+ * var pt = turf.point([-77, 44]);
+ * var poly = turf.polygon([[
  *   [-81, 41],
  *   [-81, 47],
  *   [-72, 47],
@@ -2497,7 +2345,7 @@ module.exports = function input(point, polygon) {
             var k = 1;
             // check for the point in any of the holes
             while (k < polys[i].length && !inHole) {
-                if (inRing(pt, polys[i][k])) {
+                if (inRing(pt, polys[i][k], true)) {
                     inHole = true;
                 }
                 k++;
@@ -2509,11 +2357,16 @@ module.exports = function input(point, polygon) {
 };
 
 // pt is [x,y] and ring is [[x,y], [x,y],..]
-function inRing(pt, ring) {
+function inRing(pt, ring, ignoreBoundary) {
     var isInside = false;
+    if (ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]) ring = ring.slice(0, ring.length - 1);
+
     for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
         var xi = ring[i][0], yi = ring[i][1];
         var xj = ring[j][0], yj = ring[j][1];
+        var onBoundary = (pt[1] * (xi - xj) + yi * (xj - pt[0]) + yj * (pt[0] - xi) === 0) &&
+            ((xi - pt[0]) * (xj - pt[0]) <= 0) && ((yi - pt[1]) * (yj - pt[1]) <= 0);
+        if (onBoundary) return !ignoreBoundary;
         var intersect = ((yi > pt[1]) !== (yj > pt[1])) &&
         (pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi);
         if (intersect) isInside = !isInside;
@@ -2521,7 +2374,7 @@ function inRing(pt, ring) {
     return isInside;
 }
 
-},{"@turf/invariant":32}],31:[function(require,module,exports){
+},{"@turf/invariant":31}],30:[function(require,module,exports){
 // depend on jsts for now http://bjornharrtell.github.io/jsts/
 var jsts = require('jsts');
 
@@ -2533,7 +2386,7 @@ var jsts = require('jsts');
  * @param {Feature<Polygon>} poly2 the second polygon
  * @return {(Feature|undefined)} returns a feature representing the point(s) they share (in case of a {@link Point}  or {@link MultiPoint}), the borders they share (in case of a {@link LineString} or a {@link MultiLineString}), the area they share (in case of {@link Polygon} or {@link MultiPolygon}). If they do not share any point, returns `undefined`.
  * @example
- * var poly1 = polygon([[
+ * var poly1 = turf.polygon([[
  *   [-122.801742, 45.48565],
  *   [-122.801742, 45.60491],
  *   [-122.584762, 45.60491],
@@ -2541,7 +2394,7 @@ var jsts = require('jsts');
  *   [-122.801742, 45.48565]
  * ]]);
  *
- * var poly2 = polygon([[
+ * var poly2 = turf.polygon([[
  *   [-122.520217, 45.535693],
  *   [-122.64038, 45.553967],
  *   [-122.720031, 45.526554],
@@ -2581,7 +2434,7 @@ module.exports = function intersect(poly1, poly2) {
     };
 };
 
-},{"jsts":67}],32:[function(require,module,exports){
+},{"jsts":66}],31:[function(require,module,exports){
 /**
  * Unwrap a coordinate from a Feature with a Point geometry, a Point
  * geometry, or a single coordinate.
@@ -2676,7 +2529,7 @@ module.exports.collectionOf = collectionOf;
 module.exports.featureOf = featureOf;
 module.exports.getCoord = getCoord;
 
-},{}],33:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 /* eslint-disable */
 
 /*
@@ -3195,7 +3048,7 @@ module.exports.getCoord = getCoord;
       }
   };
 
-},{}],34:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 //https://github.com/jasondavies/conrec.js
 //http://stackoverflow.com/questions/263305/drawing-a-topographical-map
 var tin = require('@turf/tin');
@@ -3296,12 +3149,12 @@ module.exports = function (points, z, resolution, breaks) {
     return fc;
 };
 
-},{"./conrec":33,"@turf/bbox":8,"@turf/distance":23,"@turf/helpers":27,"@turf/inside":30,"@turf/planepoint":42,"@turf/point-grid":43,"@turf/square":50,"@turf/tin":53}],35:[function(require,module,exports){
+},{"./conrec":32,"@turf/bbox":7,"@turf/distance":22,"@turf/helpers":26,"@turf/inside":29,"@turf/planepoint":41,"@turf/point-grid":42,"@turf/square":49,"@turf/tin":52}],34:[function(require,module,exports){
 /**
- * Takes a {@link Polygon|polygon} and returns {@link Point|points} at all self-intersections.
+ * Takes a {@link LineString|linestring}, {@link MultiLineString|multi-linestring}, {@link MultiPolygon|multi-polygon}, or {@link Polygon|polygon} and returns {@link Point|points} at all self-intersections.
  *
  * @name kinks
- * @param {Feature<Polygon>|Polygon} polygon input polygon
+ * @param {Feature<LineString|MultiLineString|MultiPolygon|Polygon>} feature input feature
  * @returns {FeatureCollection<Point>} self-intersections
  * @example
  * var poly = {
@@ -3321,7 +3174,7 @@ module.exports = function (points, z, resolution, breaks) {
  *
  * var kinks = turf.kinks(poly);
  *
- * var resultFeatures = kinks.intersections.features.concat(poly);
+ * var resultFeatures = kinks.features.concat(poly);
  * var result = {
  *   "type": "FeatureCollection",
  *   "features": resultFeatures
@@ -3332,28 +3185,41 @@ module.exports = function (points, z, resolution, breaks) {
 
 var point = require('@turf/helpers').point;
 
-module.exports = function (polyIn) {
-    var poly;
+module.exports = function (featureIn) {
+    var coordinates;
+    var feature;
     var results = {
         type: 'FeatureCollection',
         features: []
     };
-    if (polyIn.type === 'Feature') {
-        poly = polyIn.geometry;
+    if (featureIn.type === 'Feature') {
+        feature = featureIn.geometry;
     } else {
-        poly = polyIn;
+        feature = featureIn;
     }
-    poly.coordinates.forEach(function (ring1) {
-        poly.coordinates.forEach(function (ring2) {
-            for (var i = 0; i < ring1.length - 1; i++) {
-                for (var k = 0; k < ring2.length - 1; k++) {
-                    // don't check adjacent sides of a given ring, since of course they intersect in a vertex.
-                    if (ring1 === ring2 && (Math.abs(i - k) === 1 || Math.abs(i - k) === ring1.length - 2)) {
+    if (feature.type === 'LineString') {
+        coordinates = [feature.coordinates];
+    } else if (feature.type === 'MultiLineString') {
+        coordinates = feature.coordinates;
+    } else if (feature.type === 'MultiPolygon') {
+        coordinates = [].concat.apply([], feature.coordinates);
+    } else if (feature.type === 'Polygon') {
+        coordinates = feature.coordinates;
+    } else {
+        throw new Error('Input must be a LineString, MultiLineString, ' +
+            'Polygon, or MultiPolygon Feature or Geometry');
+    }
+    coordinates.forEach(function (segment1) {
+        coordinates.forEach(function (segment2) {
+            for (var i = 0; i < segment1.length - 1; i++) {
+                for (var k = 0; k < segment2.length - 1; k++) {
+                    // don't check adjacent sides of a given segment, since of course they intersect in a vertex.
+                    if (segment1 === segment2 && (Math.abs(i - k) === 1 || Math.abs(i - k) === segment1.length - 2)) {
                         continue;
                     }
 
-                    var intersection = lineIntersects(ring1[i][0], ring1[i][1], ring1[i + 1][0], ring1[i + 1][1],
-                        ring2[k][0], ring2[k][1], ring2[k + 1][0], ring2[k + 1][1]);
+                    var intersection = lineIntersects(segment1[i][0], segment1[i][1], segment1[i + 1][0], segment1[i + 1][1],
+                        segment2[k][0], segment2[k][1], segment2[k + 1][0], segment2[k + 1][1]);
                     if (intersection) {
                         results.features.push(point([intersection[0], intersection[1]]));
                     }
@@ -3410,7 +3276,7 @@ function lineIntersects(line1StartX, line1StartY, line1EndX, line1EndY, line2Sta
     }
 }
 
-},{"@turf/helpers":27}],36:[function(require,module,exports){
+},{"@turf/helpers":26}],35:[function(require,module,exports){
 var distance = require('@turf/distance');
 var point = require('@turf/helpers').point;
 
@@ -3493,7 +3359,7 @@ function length(coords, units) {
     return travelled;
 }
 
-},{"@turf/distance":23,"@turf/helpers":27}],37:[function(require,module,exports){
+},{"@turf/distance":22,"@turf/helpers":26}],36:[function(require,module,exports){
 var bearing = require('@turf/bearing');
 var distance = require('@turf/distance');
 var destination = require('@turf/destination');
@@ -3520,7 +3386,7 @@ var lineString = require('@turf/helpers').lineString;
  *   "geometry": {
  *     "type": "LineString",
  *     "coordinates": [
-*        [ 7.66845703125, 45.058001435398296 ],
+ *       [ 7.66845703125, 45.058001435398296 ],
  *       [ 9.20654296875, 45.460130637921004 ],
  *       [ 11.348876953125, 44.48866833139467 ],
  *       [ 12.1728515625, 45.43700828867389 ],
@@ -3537,7 +3403,7 @@ var lineString = require('@turf/helpers').lineString;
  *
  * var units = 'miles';
  *
- * var sliced = turf.lineSliceAlong(start, stop, line, units);
+ * var sliced = turf.lineSliceAlong(line, start, stop, units);
  *
  * //=line
  *
@@ -3556,7 +3422,10 @@ module.exports = function lineSliceAlong(line, startDist, stopDist, units) {
         if (startDist >= travelled && i === coords.length - 1) break;
         else if (travelled > startDist && slice.length === 0) {
             overshot = startDist - travelled;
-            if (!overshot) return slice.push(coords[i]);
+            if (!overshot) {
+                slice.push(coords[i]);
+                return lineString(slice);
+            }
             direction = bearing(coords[i], coords[i - 1]) - 180;
             interpolated = destination(coords[i], overshot, direction, units);
             slice.push(interpolated.geometry.coordinates);
@@ -3564,7 +3433,10 @@ module.exports = function lineSliceAlong(line, startDist, stopDist, units) {
 
         if (travelled >= stopDist) {
             overshot = stopDist - travelled;
-            if (!overshot) return slice.push(coords[i]);
+            if (!overshot) {
+                slice.push(coords[i]);
+                return lineString(slice);
+            }
             direction = bearing(coords[i], coords[i - 1]) - 180;
             interpolated = destination(coords[i], overshot, direction, units);
             slice.push(interpolated.geometry.coordinates);
@@ -3580,7 +3452,7 @@ module.exports = function lineSliceAlong(line, startDist, stopDist, units) {
     return lineString(coords[coords.length - 1]);
 };
 
-},{"@turf/bearing":9,"@turf/destination":21,"@turf/distance":23,"@turf/helpers":27}],38:[function(require,module,exports){
+},{"@turf/bearing":8,"@turf/destination":20,"@turf/distance":22,"@turf/helpers":26}],37:[function(require,module,exports){
 var linestring = require('@turf/helpers').lineString;
 var pointOnLine = require('@turf/point-on-line');
 
@@ -3662,7 +3534,7 @@ module.exports = function lineSlice(startPt, stopPt, line) {
     return clipLine;
 };
 
-},{"@turf/helpers":27,"@turf/point-on-line":44}],39:[function(require,module,exports){
+},{"@turf/helpers":26,"@turf/point-on-line":43}],38:[function(require,module,exports){
 /**
  * Iterate over coordinates in any GeoJSON object, similar to
  * Array.forEach.
@@ -3674,7 +3546,7 @@ module.exports = function lineSlice(startPt, stopPt, line) {
  * the final coordinate of LinearRings that wraps the ring in its iteration.
  * @example
  * var point = { type: 'Point', coordinates: [0, 0] };
- * coordEach(point, function(coords) {
+ * turfMeta.coordEach(point, function(coords) {
  *   // coords is equal to [0, 0]
  * });
  */
@@ -3770,7 +3642,7 @@ module.exports.coordReduce = coordReduce;
  * @param {Function} callback a method that takes (value)
  * @example
  * var point = { type: 'Feature', geometry: null, properties: { foo: 1 } };
- * propEach(point, function(props) {
+ * turfMeta.propEach(point, function(props) {
  *   // props is equal to { foo: 1}
  * });
  */
@@ -3805,7 +3677,7 @@ module.exports.propEach = propEach;
  * // javascript type of each property of every feature
  * function propTypes (layer) {
  *   opts = opts || {}
- *   return propReduce(layer, function (prev, props) {
+ *   return turfMeta.propReduce(layer, function (prev, props) {
  *     for (var prop in props) {
  *       if (prev[prop]) continue
  *       prev[prop] = typeof props[prop]
@@ -3830,7 +3702,7 @@ module.exports.propReduce = propReduce;
  * @param {Function} callback a method that takes (value)
  * @example
  * var feature = { type: 'Feature', geometry: null, properties: {} };
- * featureEach(feature, function(feature) {
+ * turfMeta.featureEach(feature, function(feature) {
  *   // feature == feature
  * });
  */
@@ -3875,7 +3747,7 @@ module.exports.coordAll = coordAll;
  *   geometry: { type: 'Point', coordinates: [0, 0] },
  *   properties: {}
  * };
- * geomEach(point, function(geom) {
+ * turfMeta.geomEach(point, function(geom) {
  *   // geom is the point geometry
  * });
  */
@@ -3928,7 +3800,7 @@ function geomEach(layer, callback) {
 }
 module.exports.geomEach = geomEach;
 
-},{}],40:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 var bearing = require('@turf/bearing');
 var destination = require('@turf/destination');
 var distance = require('@turf/distance');
@@ -3978,7 +3850,7 @@ module.exports = function (from, to) {
     return midpoint;
 };
 
-},{"@turf/bearing":9,"@turf/destination":21,"@turf/distance":23}],41:[function(require,module,exports){
+},{"@turf/bearing":8,"@turf/destination":20,"@turf/distance":22}],40:[function(require,module,exports){
 var distance = require('@turf/distance');
 
 /**
@@ -4053,7 +3925,7 @@ module.exports = function (targetPoint, points) {
     return nearestPoint;
 };
 
-},{"@turf/distance":23}],42:[function(require,module,exports){
+},{"@turf/distance":22}],41:[function(require,module,exports){
 /**
  * Takes a triangular plane as a {@link Polygon}
  * and a {@link Point} within that triangle and returns the z-value
@@ -4127,7 +3999,7 @@ module.exports = function (point, triangle) {
     return z;
 };
 
-},{}],43:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 var point = require('@turf/helpers').point;
 var featurecollection = require('@turf/helpers').featureCollection;
 var distance = require('@turf/distance');
@@ -4169,7 +4041,7 @@ module.exports = function pointGrid(bbox, cellSize, units) {
     return fc;
 };
 
-},{"@turf/distance":23,"@turf/helpers":27}],44:[function(require,module,exports){
+},{"@turf/distance":22,"@turf/helpers":26}],43:[function(require,module,exports){
 var distance = require('@turf/distance');
 var point = require('@turf/helpers').point;
 var bearing = require('@turf/bearing');
@@ -4182,7 +4054,7 @@ var destination = require('@turf/destination');
  * @param {Feature<LineString>} line line to snap to
  * @param {Feature<Point>} pt point to snap from
  * @param {string} [units=kilometers] can be degrees, radians, miles, or kilometers
- * @return {Feature<Point>} closest point on the `line` to `point`
+ * @return {Feature<Point>} closest point on the `line` to `point`. The properties object will contain three values: `index`: closest point was found on nth line part, `dist`: distance between pt and the closest point, `location`: distance along the line between start and the closest point.
  * @example
  * var line = {
  *   "type": "Feature",
@@ -4232,6 +4104,7 @@ module.exports = function (line, pt, units) {
     var closestPt = point([Infinity, Infinity], {
         dist: Infinity
     });
+    var length = 0.0;
     for (var i = 0; i < coords.length - 1; i++) {
         var start = point(coords[i]);
         var stop = point(coords[i + 1]);
@@ -4239,6 +4112,8 @@ module.exports = function (line, pt, units) {
         start.properties.dist = distance(pt, start, units);
         //stop
         stop.properties.dist = distance(pt, stop, units);
+        // sectionLength
+        var sectionLength = distance(start, stop, units);
         //perpendicular
         var heightDistance = Math.max(start.properties.dist, stop.properties.dist);
         var direction = bearing(start, stop);
@@ -4258,20 +4133,25 @@ module.exports = function (line, pt, units) {
         if (intersect) {
             intersectPt = point(intersect);
             intersectPt.properties.dist = distance(pt, intersectPt, units);
+            intersectPt.properties.location = length + distance(start, closestPt, units);
         }
 
         if (start.properties.dist < closestPt.properties.dist) {
             closestPt = start;
             closestPt.properties.index = i;
+            closestPt.properties.location = length;
         }
         if (stop.properties.dist < closestPt.properties.dist) {
             closestPt = stop;
             closestPt.properties.index = i;
+            closestPt.properties.location = length + sectionLength;
         }
         if (intersectPt && intersectPt.properties.dist < closestPt.properties.dist) {
             closestPt = intersectPt;
             closestPt.properties.index = i;
         }
+        // update length
+        length += sectionLength;
     }
 
     return closestPt;
@@ -4322,7 +4202,7 @@ function lineIntersects(line1StartX, line1StartY, line1EndX, line1EndY, line2Sta
     }
 }
 
-},{"@turf/bearing":9,"@turf/destination":21,"@turf/distance":23,"@turf/helpers":27}],45:[function(require,module,exports){
+},{"@turf/bearing":8,"@turf/destination":20,"@turf/distance":22,"@turf/helpers":26}],44:[function(require,module,exports){
 var featureCollection = require('@turf/helpers').featureCollection;
 var centroid = require('@turf/center');
 var distance = require('@turf/distance');
@@ -4472,7 +4352,7 @@ function pointOnSegment(x, y, x1, y1, x2, y2) {
 
 module.exports = pointOnSurface;
 
-},{"@turf/center":14,"@turf/distance":23,"@turf/explode":25,"@turf/helpers":27,"@turf/inside":30}],46:[function(require,module,exports){
+},{"@turf/center":13,"@turf/distance":22,"@turf/explode":24,"@turf/helpers":26,"@turf/inside":29}],45:[function(require,module,exports){
 var random = require('geojson-random');
 
 /**
@@ -4525,7 +4405,7 @@ module.exports = function (type, count, options) {
     }
 };
 
-},{"geojson-random":65}],47:[function(require,module,exports){
+},{"geojson-random":64}],46:[function(require,module,exports){
 // http://stackoverflow.com/questions/11935175/sampling-a-random-subset-from-an-array
 var featureCollection = require('@turf/helpers').featureCollection;
 
@@ -4561,7 +4441,7 @@ function getRandomSubarray(arr, size) {
     return shuffled.slice(min);
 }
 
-},{"@turf/helpers":27}],48:[function(require,module,exports){
+},{"@turf/helpers":26}],47:[function(require,module,exports){
 var simplify = require('simplify-js');
 
 // supported GeoJSON geometries, used to check whether to wrap in simpleFeature()
@@ -4711,9 +4591,9 @@ function simpleFeature(geom, properties) {
 
 function simplifyLine(coordinates, tolerance, highQuality) {
     return simplify(coordinates.map(function (coord) {
-        return {x: coord[0], y: coord[1]};
+        return {x: coord[0], y: coord[1], z: coord[2]};
     }), tolerance, highQuality).map(function (coords) {
-        return [coords.x, coords.y];
+        return (coords.z) ? [coords.x, coords.y, coords.z] : [coords.x, coords.y];
     });
 }
 
@@ -4744,7 +4624,7 @@ function simplifyPolygon(coordinates, tolerance, highQuality) {
     });
 }
 
-},{"simplify-js":74}],49:[function(require,module,exports){
+},{"simplify-js":75}],48:[function(require,module,exports){
 var featurecollection = require('@turf/helpers').featureCollection;
 var point = require('@turf/helpers').point;
 var polygon = require('@turf/helpers').polygon;
@@ -4795,7 +4675,7 @@ module.exports = function squareGrid(bbox, cellSize, units) {
     return fc;
 };
 
-},{"@turf/distance":23,"@turf/helpers":27}],50:[function(require,module,exports){
+},{"@turf/distance":22,"@turf/helpers":26}],49:[function(require,module,exports){
 var distance = require('@turf/distance');
 
 /**
@@ -4842,7 +4722,7 @@ module.exports = function (bbox) {
     }
 };
 
-},{"@turf/distance":23}],51:[function(require,module,exports){
+},{"@turf/distance":22}],50:[function(require,module,exports){
 var inside = require('@turf/inside');
 
 /**
@@ -4855,16 +4735,16 @@ var inside = require('@turf/inside');
  * @param {string} outField property in `points` in which to store joined property from `polygons`
  * @return {FeatureCollection<Point>} points with `containingPolyId` property containing values from `polyId`
  * @example
- * var pt1 = point([-77, 44]);
- * var pt2 = point([-77, 38]);
- * var poly1 = polygon([[
+ * var pt1 = turf.point([-77, 44]);
+ * var pt2 = turf.point([-77, 38]);
+ * var poly1 = turf.polygon([[
  *   [-81, 41],
  *   [-81, 47],
  *   [-72, 47],
  *   [-72, 41],
  *   [-81, 41]
  * ]], {pop: 3000});
- * var poly2 = polygon([[
+ * var poly2 = turf.polygon([[
  *   [-81, 35],
  *   [-81, 41],
  *   [-72, 41],
@@ -4872,8 +4752,8 @@ var inside = require('@turf/inside');
  *   [-81, 35]
  * ]], {pop: 1000});
  *
- * var points = featureCollection([pt1, pt2]);
- * var polygons = featureCollection([poly1, poly2]);
+ * var points = turf.featureCollection([pt1, pt2]);
+ * var polygons = turf.featureCollection([poly1, poly2]);
  *
  * var tagged = turf.tag(points, polygons,
  *                       'pop', 'population');
@@ -4900,7 +4780,7 @@ module.exports = function (points, polygons, field, outField) {
     return points;
 };
 
-},{"@turf/inside":30}],52:[function(require,module,exports){
+},{"@turf/inside":29}],51:[function(require,module,exports){
 var polygon = require('@turf/helpers').polygon;
 var earcut = require('earcut');
 
@@ -4977,7 +4857,7 @@ function flattenCoords(data) {
     return result;
 }
 
-},{"@turf/helpers":27,"earcut":64}],53:[function(require,module,exports){
+},{"@turf/helpers":26,"earcut":63}],52:[function(require,module,exports){
 //http://en.wikipedia.org/wiki/Delaunay_triangulation
 //https://github.com/ironwallaby/delaunay
 var polygon = require('@turf/helpers').polygon;
@@ -4995,7 +4875,7 @@ var featurecollection = require('@turf/helpers').featureCollection;
  *
  * @name tin
  * @param {FeatureCollection<Point>} points input points
- * @param {String=} z name of the property from which to pull z values
+ * @param {String} [z] name of the property from which to pull z values
  * This is optional: if not given, then there will be no extra data added to the derived triangles.
  * @return {FeatureCollection<Polygon>} TIN output
  * @example
@@ -5221,7 +5101,7 @@ function triangulate(vertices) {
     return closed;
 }
 
-},{"@turf/helpers":27}],54:[function(require,module,exports){
+},{"@turf/helpers":26}],53:[function(require,module,exports){
 var featurecollection = require('@turf/helpers').featureCollection;
 var polygon = require('@turf/helpers').polygon;
 var distance = require('@turf/distance');
@@ -5239,7 +5119,7 @@ var distance = require('@turf/distance');
  * var cellSize = 10;
  * var units = 'miles';
  *
- * var triangleGrid = turf.triangleGrid(extent, cellSize, units);
+ * var triangleGrid = turf.triangleGrid(bbox, cellSize, units);
  *
  * //=triangleGrid
  */
@@ -5315,7 +5195,7 @@ module.exports = function (bbox, cellSize, units) {
 };
 
 
-},{"@turf/distance":23,"@turf/helpers":27}],55:[function(require,module,exports){
+},{"@turf/distance":22,"@turf/helpers":26}],54:[function(require,module,exports){
 /*eslint global-require: 0*/
 
 /**
@@ -5396,7 +5276,7 @@ module.exports = turf;
 // Allow use of default import syntax in TypeScript
 module.exports.default = turf;
 
-},{"@turf/along":5,"@turf/area":6,"@turf/bbox":8,"@turf/bbox-polygon":7,"@turf/bearing":9,"@turf/bezier":10,"@turf/buffer":12,"@turf/center":14,"@turf/center-of-mass":13,"@turf/centroid":15,"@turf/circle":16,"@turf/collect":17,"@turf/combine":18,"@turf/concave":19,"@turf/convex":20,"@turf/destination":21,"@turf/difference":22,"@turf/distance":23,"@turf/envelope":24,"@turf/explode":25,"@turf/flip":26,"@turf/helpers":27,"@turf/hex-grid":28,"@turf/idw":29,"@turf/inside":30,"@turf/intersect":31,"@turf/invariant":32,"@turf/isolines":34,"@turf/kinks":35,"@turf/line-distance":36,"@turf/line-slice":38,"@turf/line-slice-along":37,"@turf/midpoint":40,"@turf/nearest":41,"@turf/planepoint":42,"@turf/point-grid":43,"@turf/point-on-line":44,"@turf/point-on-surface":45,"@turf/random":46,"@turf/sample":47,"@turf/simplify":48,"@turf/square":50,"@turf/square-grid":49,"@turf/tag":51,"@turf/tesselate":52,"@turf/tin":53,"@turf/triangle-grid":54,"@turf/union":56,"@turf/within":57}],56:[function(require,module,exports){
+},{"@turf/along":4,"@turf/area":5,"@turf/bbox":7,"@turf/bbox-polygon":6,"@turf/bearing":8,"@turf/bezier":9,"@turf/buffer":11,"@turf/center":13,"@turf/center-of-mass":12,"@turf/centroid":14,"@turf/circle":15,"@turf/collect":16,"@turf/combine":17,"@turf/concave":18,"@turf/convex":19,"@turf/destination":20,"@turf/difference":21,"@turf/distance":22,"@turf/envelope":23,"@turf/explode":24,"@turf/flip":25,"@turf/helpers":26,"@turf/hex-grid":27,"@turf/idw":28,"@turf/inside":29,"@turf/intersect":30,"@turf/invariant":31,"@turf/isolines":33,"@turf/kinks":34,"@turf/line-distance":35,"@turf/line-slice":37,"@turf/line-slice-along":36,"@turf/midpoint":39,"@turf/nearest":40,"@turf/planepoint":41,"@turf/point-grid":42,"@turf/point-on-line":43,"@turf/point-on-surface":44,"@turf/random":45,"@turf/sample":46,"@turf/simplify":47,"@turf/square":49,"@turf/square-grid":48,"@turf/tag":50,"@turf/tesselate":51,"@turf/tin":52,"@turf/triangle-grid":53,"@turf/union":55,"@turf/within":56}],55:[function(require,module,exports){
 // look here for help http://svn.osgeo.org/grass/grass/branches/releasebranch_6_4/vector/v.overlay/main.c
 //must be array of polygons
 
@@ -5472,7 +5352,7 @@ module.exports = function () {
     };
 };
 
-},{"jsts":67}],57:[function(require,module,exports){
+},{"jsts":66}],56:[function(require,module,exports){
 var inside = require('@turf/inside');
 var featureCollection = require('@turf/helpers').featureCollection;
 
@@ -5568,7 +5448,7 @@ module.exports = function (points, polygons) {
     return pointsWithin;
 };
 
-},{"@turf/helpers":27,"@turf/inside":30}],58:[function(require,module,exports){
+},{"@turf/helpers":26,"@turf/inside":29}],57:[function(require,module,exports){
 'use strict'
 
 module.exports = affineHull
@@ -5620,7 +5500,7 @@ function affineHull(points) {
   }
   return index
 }
-},{"robust-orientation":69}],59:[function(require,module,exports){
+},{"robust-orientation":70}],58:[function(require,module,exports){
 /**
  * Bit twiddling hacks for JavaScript.
  *
@@ -5826,7 +5706,7 @@ exports.nextCombination = function(v) {
 }
 
 
-},{}],60:[function(require,module,exports){
+},{}],59:[function(require,module,exports){
 "use strict"
 
 var convexHull1d = require('./lib/ch1d')
@@ -5852,7 +5732,7 @@ function convexHull(points) {
   }
   return convexHullnd(points, d)
 }
-},{"./lib/ch1d":61,"./lib/ch2d":62,"./lib/chnd":63}],61:[function(require,module,exports){
+},{"./lib/ch1d":60,"./lib/ch2d":61,"./lib/chnd":62}],60:[function(require,module,exports){
 "use strict"
 
 module.exports = convexHull1d
@@ -5876,7 +5756,7 @@ function convexHull1d(points) {
     return [[lo]]
   }
 }
-},{}],62:[function(require,module,exports){
+},{}],61:[function(require,module,exports){
 'use strict'
 
 module.exports = convexHull2D
@@ -5899,7 +5779,7 @@ function convexHull2D(points) {
   return edges
 }
 
-},{"monotone-convex-hull-2d":68}],63:[function(require,module,exports){
+},{"monotone-convex-hull-2d":67}],62:[function(require,module,exports){
 'use strict'
 
 module.exports = convexHullnD
@@ -5960,7 +5840,7 @@ function convexHullnD(points, d) {
     return invPermute(nhull, ah)
   }
 }
-},{"affine-hull":58,"incremental-convex-hull":66}],64:[function(require,module,exports){
+},{"affine-hull":57,"incremental-convex-hull":65}],63:[function(require,module,exports){
 'use strict';
 
 module.exports = earcut;
@@ -6606,7 +6486,7 @@ earcut.flatten = function (data) {
     return result;
 };
 
-},{}],65:[function(require,module,exports){
+},{}],64:[function(require,module,exports){
 module.exports = function() {
     throw new Error('call .point() or .polygon() instead');
 };
@@ -6711,7 +6591,7 @@ function collection(f) {
     };
 }
 
-},{}],66:[function(require,module,exports){
+},{}],65:[function(require,module,exports){
 "use strict"
 
 //High level idea:
@@ -7158,7 +7038,7 @@ function incrementalConvexHull(points, randomSearch) {
   //Extract boundary cells
   return triangles.boundary()
 }
-},{"robust-orientation":69,"simplicial-complex":73}],67:[function(require,module,exports){
+},{"robust-orientation":70,"simplicial-complex":74}],66:[function(require,module,exports){
 // JSTS. See https://github.com/bjornharrtell/jsts
 // Licenses:
 // https://github.com/bjornharrtell/jsts/blob/master/LICENSE_EDLv1.txt
@@ -7179,7 +7059,7 @@ return[]},getClass:function(){return Oi}}),Oi.isValidEdge=function(t,e){var n=e.
 if(this.polyList=new I,null===this.graph)return null;this.dangles=this.graph.deleteDangles(),this.cutEdges=this.graph.deleteCutEdges();var t=this.graph.getEdgeRings(),e=new I;this.invalidRingLines=new I,this.isCheckingRingsValid?this.findValidRings(t,e,this.invalidRingLines):e=t,this.findShellsAndHoles(e),jr.assignHolesToShells(this.holeList,this.shellList),ho.sort(this.shellList,new Xr.EnvelopeComparator);var n=!0;this.extractOnlyPolygonal&&(jr.findDisjointShells(this.shellList),n=!1),this.polyList=jr.extractPolygons(this.shellList,n)},getDangles:function(){return this.polygonize(),this.dangles},getCutEdges:function(){return this.polygonize(),this.cutEdges},getPolygons:function(){return this.polygonize(),this.polyList},add:function(){if(R(arguments[0],v))for(var t=arguments[0],e=t.iterator();e.hasNext();){var n=e.next();this.add(n)}else if(arguments[0]instanceof St){var i=arguments[0];this.geomFactory=i.getFactory(),null===this.graph&&(this.graph=new Wr(this.geomFactory)),this.graph.addEdge(i)}else if(arguments[0]instanceof B){var r=arguments[0];r.apply(this.lineStringAdder)}},setCheckRingsValid:function(t){this.isCheckingRingsValid=t},findShellsAndHoles:function(t){this.holeList=new I,this.shellList=new I;for(var e=t.iterator();e.hasNext();){var n=e.next();n.computeHole(),n.isHole()?this.holeList.add(n):this.shellList.add(n)}},interfaces_:function(){return[]},getClass:function(){return jr}}),jr.findOuterShells=function(t){for(var e=t.iterator();e.hasNext();){var n=e.next(),i=n.getOuterHole();null===i||i.isProcessed()||(n.setIncluded(!0),i.setProcessed(!0))}},jr.extractPolygons=function(t,e){for(var n=new I,i=t.iterator();i.hasNext();){var r=i.next();(e||r.isIncluded())&&n.add(r.getPolygon())}return n},jr.assignHolesToShells=function(t,e){for(var n=t.iterator();n.hasNext();){var i=n.next();jr.assignHoleToShell(i,e)}},jr.assignHoleToShell=function(t,e){var n=Xr.findEdgeRingContaining(t,e);null!==n&&n.addHole(t)},jr.findDisjointShells=function(t){jr.findOuterShells(t);var e=null;do{e=!1;for(var n=t.iterator();n.hasNext();){var i=n.next();i.isIncludedSet()||(i.updateIncluded(),i.isIncludedSet()||(e=!0))}}while(e)},e(Kr.prototype,{filter:function(t){t instanceof St&&this.p.add(t)},interfaces_:function(){return[q]},getClass:function(){return Kr}}),jr.LineStringAdder=Kr;var To=Object.freeze({Polygonizer:jr});e(Zr.prototype,{insertEdgeEnds:function(t){for(var e=t.iterator();e.hasNext();){var n=e.next();this.nodes.add(n)}},computeProperIntersectionIM:function(t,e){var n=this.arg[0].getGeometry().getDimension(),i=this.arg[1].getGeometry().getDimension(),r=t.hasProperIntersection(),s=t.hasProperInteriorIntersection();2===n&&2===i?r&&e.setAtLeast("212101212"):2===n&&1===i?(r&&e.setAtLeast("FFF0FFFF2"),s&&e.setAtLeast("1FFFFF1FF")):1===n&&2===i?(r&&e.setAtLeast("F0FFFFFF2"),s&&e.setAtLeast("1F1FFFFFF")):1===n&&1===i&&s&&e.setAtLeast("0FFFFFFFF")},labelIsolatedEdges:function(t,e){for(var n=this.arg[t].getEdgeIterator();n.hasNext();){var i=n.next();i.isIsolated()&&(this.labelIsolatedEdge(i,e,this.arg[e].getGeometry()),this.isolatedEdges.add(i))}},labelIsolatedEdge:function(t,e,n){if(n.getDimension()>0){var i=this.ptLocator.locate(t.getCoordinate(),n);t.getLabel().setAllLocations(e,i)}else t.getLabel().setAllLocations(e,L.EXTERIOR)},computeIM:function(){var t=new fe;if(t.set(L.EXTERIOR,L.EXTERIOR,2),!this.arg[0].getGeometry().getEnvelopeInternal().intersects(this.arg[1].getGeometry().getEnvelopeInternal()))return this.computeDisjointIM(t),t;this.arg[0].computeSelfNodes(this.li,!1),this.arg[1].computeSelfNodes(this.li,!1);var e=this.arg[0].computeEdgeIntersections(this.arg[1],this.li,!1);this.computeIntersectionNodes(0),this.computeIntersectionNodes(1),this.copyNodesAndLabels(0),this.copyNodesAndLabels(1),this.labelIsolatedNodes(),this.computeProperIntersectionIM(e,t);var n=new Ar,i=n.computeEdgeEnds(this.arg[0].getEdgeIterator());this.insertEdgeEnds(i);var r=n.computeEdgeEnds(this.arg[1].getEdgeIterator());return this.insertEdgeEnds(r),this.labelNodeEdges(),this.labelIsolatedEdges(0,1),this.labelIsolatedEdges(1,0),this.updateIM(t),t},labelNodeEdges:function(){for(var t=this.nodes.iterator();t.hasNext();){var e=t.next();e.getEdges().computeLabelling(this.arg)}},copyNodesAndLabels:function(t){for(var e=this.arg[t].getNodeIterator();e.hasNext();){var n=e.next(),i=this.nodes.addNode(n.getCoordinate());i.setLabel(t,n.getLabel().getLocation(t))}},labelIntersectionNodes:function(t){for(var e=this.arg[t].getEdgeIterator();e.hasNext();)for(var n=e.next(),i=n.getLabel().getLocation(t),r=n.getEdgeIntersectionList().iterator();r.hasNext();){var s=r.next(),o=this.nodes.find(s.coord);o.getLabel().isNull(t)&&(i===L.BOUNDARY?o.setLabelBoundary(t):o.setLabel(t,L.INTERIOR))}},labelIsolatedNode:function(t,e){var n=this.ptLocator.locate(t.getCoordinate(),this.arg[e].getGeometry());t.getLabel().setAllLocations(e,n)},computeIntersectionNodes:function(t){for(var e=this.arg[t].getEdgeIterator();e.hasNext();)for(var n=e.next(),i=n.getLabel().getLocation(t),r=n.getEdgeIntersectionList().iterator();r.hasNext();){var s=r.next(),o=this.nodes.addNode(s.coord);i===L.BOUNDARY?o.setLabelBoundary(t):o.getLabel().isNull(t)&&o.setLabel(t,L.INTERIOR)}},labelIsolatedNodes:function(){for(var t=this.nodes.iterator();t.hasNext();){var e=t.next(),n=e.getLabel();f.isTrue(n.getGeometryCount()>0,"node with empty label found"),e.isIsolated()&&(n.isNull(0)?this.labelIsolatedNode(e,0):this.labelIsolatedNode(e,1))}},updateIM:function(t){for(var e=this.isolatedEdges.iterator();e.hasNext();){var n=e.next();n.updateIM(t)}for(var i=this.nodes.iterator();i.hasNext();){var r=i.next();r.updateIM(t),r.updateIMFromEdges(t)}},computeDisjointIM:function(t){var e=this.arg[0].getGeometry();e.isEmpty()||(t.set(L.INTERIOR,L.EXTERIOR,e.getDimension()),t.set(L.BOUNDARY,L.EXTERIOR,e.getBoundaryDimension()));var n=this.arg[1].getGeometry();n.isEmpty()||(t.set(L.EXTERIOR,L.INTERIOR,n.getDimension()),t.set(L.EXTERIOR,L.BOUNDARY,n.getBoundaryDimension()))},interfaces_:function(){return[]},getClass:function(){return Zr}}),e(Qr.prototype,{isContainedInBoundary:function(t){if(t instanceof Tt)return!1;if(t instanceof Lt)return this.isPointContainedInBoundary(t);if(t instanceof St)return this.isLineStringContainedInBoundary(t);for(var e=0;e<t.getNumGeometries();e++){var n=t.getGeometryN(e);if(!this.isContainedInBoundary(n))return!1}return!0},isLineSegmentContainedInBoundary:function(t,e){if(t.equals(e))return this.isPointContainedInBoundary(t);if(t.x===e.x){if(t.x===this.rectEnv.getMinX()||t.x===this.rectEnv.getMaxX())return!0}else if(t.y===e.y&&(t.y===this.rectEnv.getMinY()||t.y===this.rectEnv.getMaxY()))return!0;return!1},isLineStringContainedInBoundary:function(t){for(var e=t.getCoordinateSequence(),n=new g,i=new g,r=0;r<e.size()-1;r++)if(e.getCoordinate(r,n),e.getCoordinate(r+1,i),!this.isLineSegmentContainedInBoundary(n,i))return!1;return!0},isPointContainedInBoundary:function(){if(arguments[0]instanceof Lt){var t=arguments[0];return this.isPointContainedInBoundary(t.getCoordinate())}if(arguments[0]instanceof g){var e=arguments[0];return e.x===this.rectEnv.getMinX()||e.x===this.rectEnv.getMaxX()||e.y===this.rectEnv.getMinY()||e.y===this.rectEnv.getMaxY()}},contains:function(t){return!!this.rectEnv.contains(t.getEnvelopeInternal())&&!this.isContainedInBoundary(t)},interfaces_:function(){return[]},getClass:function(){return Qr}}),Qr.contains=function(t,e){var n=new Qr(t);return n.contains(e)},e(Jr.prototype,{intersects:function(t,e){var n=new C(t,e);if(!this.rectEnv.intersects(n))return!1;if(this.rectEnv.intersects(t))return!0;if(this.rectEnv.intersects(e))return!0;if(t.compareTo(e)>0){var i=t;t=e,e=i}var r=!1;return e.y>t.y&&(r=!0),r?this.li.computeIntersection(t,e,this.diagDown0,this.diagDown1):this.li.computeIntersection(t,e,this.diagUp0,this.diagUp1),!!this.li.hasIntersection()},interfaces_:function(){return[]},getClass:function(){return Jr}}),e($r.prototype,{applyTo:function(t){for(var e=0;e<t.getNumGeometries()&&!this._isDone;e++){var n=t.getGeometryN(e);if(n instanceof ft)this.applyTo(n);else if(this.visit(n),this.isDone())return this._isDone=!0,null}},interfaces_:function(){return[]},getClass:function(){return $r}}),e(ts.prototype,{intersects:function(t){if(!this.rectEnv.intersects(t.getEnvelopeInternal()))return!1;var e=new es(this.rectEnv);if(e.applyTo(t),e.intersects())return!0;var n=new ns(this.rectangle);if(n.applyTo(t),n.containsPoint())return!0;var i=new is(this.rectangle);return i.applyTo(t),!!i.intersects()},interfaces_:function(){return[]},getClass:function(){return ts}}),ts.intersects=function(t,e){var n=new ts(t);return n.intersects(e)},h(es,$r),e(es.prototype,{isDone:function(){return this._intersects===!0},visit:function(t){var e=t.getEnvelopeInternal();return this.rectEnv.intersects(e)?this.rectEnv.contains(e)?(this._intersects=!0,null):e.getMinX()>=this.rectEnv.getMinX()&&e.getMaxX()<=this.rectEnv.getMaxX()?(this._intersects=!0,null):e.getMinY()>=this.rectEnv.getMinY()&&e.getMaxY()<=this.rectEnv.getMaxY()?(this._intersects=!0,null):void 0:null},intersects:function(){return this._intersects},interfaces_:function(){return[]},getClass:function(){return es}}),h(ns,$r),e(ns.prototype,{isDone:function(){return this._containsPoint===!0},visit:function(t){if(!(t instanceof Tt))return null;var e=t.getEnvelopeInternal();if(!this.rectEnv.intersects(e))return null;for(var n=new g,i=0;i<4;i++)if(this.rectSeq.getCoordinate(i,n),e.contains(n)&&Tn.containsPointInPolygon(n,t))return this._containsPoint=!0,null},containsPoint:function(){return this._containsPoint},interfaces_:function(){return[]},getClass:function(){return ns}}),h(is,$r),e(is.prototype,{intersects:function(){return this.hasIntersection},isDone:function(){return this.hasIntersection===!0},visit:function(t){var e=t.getEnvelopeInternal();if(!this.rectEnv.intersects(e))return null;var n=kn.getLines(t);this.checkIntersectionWithLineStrings(n)},checkIntersectionWithLineStrings:function(t){for(var e=t.iterator();e.hasNext();){var n=e.next();if(this.checkIntersectionWithSegments(n),this.hasIntersection)return null}},checkIntersectionWithSegments:function(t){for(var e=t.getCoordinateSequence(),n=1;n<e.size();n++)if(e.getCoordinate(n-1,this.p0),e.getCoordinate(n,this.p1),this.rectIntersector.intersects(this.p0,this.p1))return this.hasIntersection=!0,null},interfaces_:function(){return[]},getClass:function(){return is}}),h(rs,ti),e(rs.prototype,{getIntersectionMatrix:function(){return this._relate.computeIM()},interfaces_:function(){return[]},getClass:function(){return rs}}),rs.covers=function(t,e){return!!t.getEnvelopeInternal().covers(e.getEnvelopeInternal())&&(!!t.isRectangle()||rs.relate(t,e).isCovers())},rs.intersects=function(t,e){return!!t.getEnvelopeInternal().intersects(e.getEnvelopeInternal())&&(t.isRectangle()?ts.intersects(t,e):e.isRectangle()?ts.intersects(e,t):rs.relate(t,e).isIntersects())},rs.touches=function(t,e){return!!t.getEnvelopeInternal().intersects(e.getEnvelopeInternal())&&rs.relate(t,e).isTouches(t.getDimension(),e.getDimension())},rs.within=function(t,e){return e.contains(t)},rs.coveredBy=function(t,e){return rs.covers(e,t)},rs.relate=function(){if(2===arguments.length){var t=arguments[0],e=arguments[1],n=new rs(t,e),i=n.getIntersectionMatrix();return i}if(3===arguments.length){if("string"==typeof arguments[2]&&arguments[0]instanceof B&&arguments[1]instanceof B){var r=arguments[0],s=arguments[1],o=arguments[2];return rs.relateWithCheck(r,s).matches(o)}if(R(arguments[2],V)&&arguments[0]instanceof B&&arguments[1]instanceof B){var a=arguments[0],u=arguments[1],l=arguments[2],n=new rs(a,u,l),i=n.getIntersectionMatrix();return i}}},rs.overlaps=function(t,e){return!!t.getEnvelopeInternal().intersects(e.getEnvelopeInternal())&&rs.relate(t,e).isOverlaps(t.getDimension(),e.getDimension())},rs.disjoint=function(t,e){return!t.intersects(e)},rs.relateWithCheck=function(t,e){return t.checkNotGeometryCollection(t),t.checkNotGeometryCollection(e),rs.relate(t,e)},rs.crosses=function(t,e){return!!t.getEnvelopeInternal().intersects(e.getEnvelopeInternal())&&rs.relate(t,e).isCrosses(t.getDimension(),e.getDimension())},rs.contains=function(t,e){return!!t.getEnvelopeInternal().contains(e.getEnvelopeInternal())&&(t.isRectangle()?Qr.contains(t,e):rs.relate(t,e).isContains())};var Po=Object.freeze({RelateOp:rs});e(ss.prototype,{extractElements:function(t,e){if(null===t)return null;for(var n=0;n<t.getNumGeometries();n++){var i=t.getGeometryN(n);this.skipEmpty&&i.isEmpty()||e.add(i)}},combine:function(){for(var t=new I,e=this.inputGeoms.iterator();e.hasNext();){var n=e.next();this.extractElements(n,t)}return 0===t.size()?null!==this.geomFactory?this.geomFactory.createGeometryCollection(null):null:this.geomFactory.buildGeometry(t)},interfaces_:function(){return[]},getClass:function(){return ss}}),ss.combine=function(){if(1===arguments.length){var t=arguments[0],e=new ss(t);return e.combine()}if(2===arguments.length){var n=arguments[0],i=arguments[1],e=new ss(ss.createList(n,i));return e.combine()}if(3===arguments.length){var r=arguments[0],s=arguments[1],o=arguments[2],e=new ss(ss.createList(r,s,o));return e.combine()}},ss.extractFactory=function(t){return t.isEmpty()?null:t.iterator().next().getFactory()},ss.createList=function(){if(2===arguments.length){var t=arguments[0],e=arguments[1],n=new I;return n.add(t),n.add(e),n}if(3===arguments.length){var i=arguments[0],r=arguments[1],s=arguments[2],n=new I;return n.add(i),n.add(r),n.add(s),n}},e(os.prototype,{union:function(){for(var t=new Te,e=new at,n=0;n<this.pointGeom.getNumGeometries();n++){var i=this.pointGeom.getGeometryN(n),r=i.getCoordinate(),s=t.locate(r,this.otherGeom);s===L.EXTERIOR&&e.add(r)}if(0===e.size())return this.otherGeom;var o=null,a=H.toCoordinateArray(e);return o=1===a.length?this.geomFact.createPoint(a[0]):this.geomFact.createMultiPointFromCoords(a),ss.combine(o,this.otherGeom)},interfaces_:function(){return[]},getClass:function(){return os}}),os.union=function(t,e){var n=new os(t,e);return n.union()},e(as.prototype,{filter:function(t){this.sortIndex!==-1&&t.getSortIndex()!==this.sortIndex||this.comps.add(t)},interfaces_:function(){return[ht]},getClass:function(){return as}}),as.extract=function(){if(2===arguments.length){var t=arguments[0],e=arguments[1];return as.extract(t,e,new I)}if(3===arguments.length){var n=arguments[0],i=arguments[1],r=arguments[2];return n.getSortIndex()===i?r.add(n):n instanceof ft&&n.apply(new as(i,r)),r}},e(us.prototype,{reduceToGeometries:function(t){for(var e=new I,n=t.iterator();n.hasNext();){var i=n.next(),r=null;R(i,y)?r=this.unionTree(i):i instanceof B&&(r=i),e.add(r)}return e},extractByEnvelope:function(t,e,n){for(var i=new I,r=0;r<e.getNumGeometries();r++){var s=e.getGeometryN(r);s.getEnvelopeInternal().intersects(t)?i.add(s):n.add(s)}return this.geomFactory.buildGeometry(i)},unionOptimized:function(t,e){var n=t.getEnvelopeInternal(),i=e.getEnvelopeInternal();if(!n.intersects(i)){var r=ss.combine(t,e);return r}if(t.getNumGeometries()<=1&&e.getNumGeometries()<=1)return this.unionActual(t,e);var s=n.intersection(i);return this.unionUsingEnvelopeIntersection(t,e,s)},union:function(){if(null===this.inputPolys)throw new IllegalStateException("union() method cannot be called twice");if(this.inputPolys.isEmpty())return null;this.geomFactory=this.inputPolys.iterator().next().getFactory();for(var t=new ke(us.STRTREE_NODE_CAPACITY),e=this.inputPolys.iterator();e.hasNext();){var n=e.next();t.insert(n.getEnvelopeInternal(),n)}this.inputPolys=null;var i=t.itemsTree(),r=this.unionTree(i);return r},binaryUnion:function(){if(1===arguments.length){var t=arguments[0];return this.binaryUnion(t,0,t.size())}if(3===arguments.length){var e=arguments[0],n=arguments[1],i=arguments[2];if(i-n<=1){var r=us.getGeometry(e,n);return this.unionSafe(r,null)}if(i-n===2)return this.unionSafe(us.getGeometry(e,n),us.getGeometry(e,n+1));var s=Math.trunc((i+n)/2),r=this.binaryUnion(e,n,s),o=this.binaryUnion(e,s,i);return this.unionSafe(r,o)}},repeatedUnion:function(t){for(var e=null,n=t.iterator();n.hasNext();){var i=n.next();e=null===e?i.copy():e.union(i)}return e},unionSafe:function(t,e){return null===t&&null===e?null:null===t?e.copy():null===e?t.copy():this.unionOptimized(t,e)},unionActual:function(t,e){return us.restrictToPolygons(t.union(e))},unionTree:function(t){var e=this.reduceToGeometries(t),n=this.binaryUnion(e);return n},unionUsingEnvelopeIntersection:function(t,e,n){var i=new I,r=this.extractByEnvelope(n,t,i),s=this.extractByEnvelope(n,e,i),o=this.unionActual(r,s);i.add(o);var a=ss.combine(i);return a},bufferUnion:function(){if(1===arguments.length){var t=arguments[0],e=t.get(0).getFactory(),n=e.buildGeometry(t),i=n.buffer(0);return i}if(2===arguments.length){var r=arguments[0],s=arguments[1],e=r.getFactory(),n=e.createGeometryCollection([r,s]),i=n.buffer(0);return i}},interfaces_:function(){return[]},getClass:function(){return us}}),us.restrictToPolygons=function(t){if(R(t,Rt))return t;var e=pr.getPolygons(t);return 1===e.size()?e.get(0):t.getFactory().createMultiPolygon(ie.toPolygonArray(e))},us.getGeometry=function(t,e){return e>=t.size()?null:t.get(e)},us.union=function(t){var e=new us(t);return e.union()},us.STRTREE_NODE_CAPACITY=4,e(ls.prototype,{unionNoOpt:function(t){var e=this.geomFact.createPoint();return si.overlayOp(t,e,ii.UNION)},unionWithNull:function(t,e){return null===t&&null===e?null:null===e?t:null===t?e:t.union(e)},extract:function(){if(R(arguments[0],v))for(var t=arguments[0],e=t.iterator();e.hasNext();){var n=e.next();this.extract(n)}else if(arguments[0]instanceof B){var i=arguments[0];null===this.geomFact&&(this.geomFact=i.getFactory()),as.extract(i,B.SORTINDEX_POLYGON,this.polygons),as.extract(i,B.SORTINDEX_LINESTRING,this.lines),as.extract(i,B.SORTINDEX_POINT,this.points)}},union:function t(){if(null===this.geomFact)return null;var e=null;if(this.points.size()>0){var n=this.geomFact.buildGeometry(this.points);e=this.unionNoOpt(n)}var i=null;if(this.lines.size()>0){var r=this.geomFact.buildGeometry(this.lines);i=this.unionNoOpt(r)}var s=null;this.polygons.size()>0&&(s=us.union(this.polygons));var o=this.unionWithNull(i,s),t=null;return t=null===e?o:null===o?e:os.union(e,o),null===t?this.geomFact.createGeometryCollection():t},interfaces_:function(){return[]},getClass:function(){return ls}}),ls.union=function(){if(1===arguments.length){if(R(arguments[0],v)){var t=arguments[0],e=new ls(t);return e.union()}if(arguments[0]instanceof B){var n=arguments[0],e=new ls(n);return e.union()}}else if(2===arguments.length){var i=arguments[0],r=arguments[1],e=new ls(i,r);return e.union()}};var bo=Object.freeze({UnaryUnionOp:ls}),Oo=Object.freeze({IsValidOp:Ur,ConsistentAreaTester:Vr}),_o=Object.freeze({BoundaryOp:dt,IsSimpleOp:Wi,buffer:So,distance:wo,linemerge:Lo,overlay:Ro,polygonize:To,relate:Po,union:bo,valid:Oo});h(hs,_t.CoordinateOperation),e(hs.prototype,{editCoordinates:function(t,e){if(0===t.length)return null;for(var n=new Array(t.length).fill(null),i=0;i<t.length;i++){var r=new g(t[i]);this.targetPM.makePrecise(r),n[i]=r}var s=new N(n,(!1)),o=s.toCoordinateArray(),a=0;e instanceof St&&(a=2),e instanceof bt&&(a=4);var u=n;return this.removeCollapsed&&(u=null),o.length<a?u:o},interfaces_:function(){return[]},getClass:function(){return hs}}),e(cs.prototype,{fixPolygonalTopology:function(t){var e=t;this.changePrecisionModel||(e=this.changePM(t,this.targetPM));var n=e.buffer(0),i=n;return this.changePrecisionModel||(i=this.changePM(n,t.getPrecisionModel())),i},reducePointwise:function(t){var e=null;if(this.changePrecisionModel){var n=this.createFactory(t.getFactory(),this.targetPM);e=new _t(n)}else e=new _t;var i=this.removeCollapsed;t.getDimension()>=2&&(i=!0);var r=e.edit(t,new hs(this.targetPM,i));return r},changePM:function(t,e){var n=this.createEditor(t.getFactory(),e);return n.edit(t,new _t.NoOpGeometryOperation)},setRemoveCollapsedComponents:function(t){this.removeCollapsed=t},createFactory:function(t,e){var n=new ie(e,t.getSRID(),t.getCoordinateSequenceFactory());return n},setChangePrecisionModel:function(t){this.changePrecisionModel=t},reduce:function(t){var e=this.reducePointwise(t);return this.isPointwise?e:R(e,Rt)?e.isValid()?e:this.fixPolygonalTopology(e):e},setPointwise:function(t){this.isPointwise=t},createEditor:function(t,e){if(t.getPrecisionModel()===e)return new _t;var n=this.createFactory(t,e),i=new _t(n);return i},interfaces_:function(){return[]},getClass:function(){return cs}}),cs.reduce=function(t,e){var n=new cs(e);return n.reduce(t)},cs.reducePointwise=function(t,e){var n=new cs(e);return n.setPointwise(!0),n.reduce(t)};var Mo=Object.freeze({GeometryPrecisionReducer:cs});e(fs.prototype,{simplifySection:function(t,e){if(t+1===e)return null;this.seg.p0=this.pts[t],this.seg.p1=this.pts[e];for(var n=-1,i=t,r=t+1;r<e;r++){var s=this.seg.distance(this.pts[r]);s>n&&(n=s,i=r)}if(n<=this.distanceTolerance)for(var r=t+1;r<e;r++)this.usePt[r]=!1;else this.simplifySection(t,i),this.simplifySection(i,e)},setDistanceTolerance:function(t){this.distanceTolerance=t},simplify:function(){this.usePt=new Array(this.pts.length).fill(null);for(var t=0;t<this.pts.length;t++)this.usePt[t]=!0;this.simplifySection(0,this.pts.length-1);for(var e=new N,t=0;t<this.pts.length;t++)this.usePt[t]&&e.add(new g(this.pts[t]));return e.toCoordinateArray()},interfaces_:function(){return[]},getClass:function(){return fs}}),fs.simplify=function(t,e){var n=new fs(t);return n.setDistanceTolerance(e),n.simplify()},e(gs.prototype,{setEnsureValid:function(t){this.isEnsureValidTopology=t},getResultGeometry:function(){return this.inputGeom.isEmpty()?this.inputGeom.copy():new ds(this.isEnsureValidTopology,this.distanceTolerance).transform(this.inputGeom)},setDistanceTolerance:function(t){if(t<0)throw new i("Tolerance must be non-negative");this.distanceTolerance=t},interfaces_:function(){return[]},getClass:function(){return gs}}),gs.simplify=function(t,e){var n=new gs(t);return n.setDistanceTolerance(e),n.getResultGeometry()},h(ds,xe),e(ds.prototype,{transformPolygon:function(t,e){if(t.isEmpty())return null;var n=xe.prototype.transformPolygon.call(this,t,e);return e instanceof Ot?n:this.createValidArea(n)},createValidArea:function(t){return this.isEnsureValidTopology?t.buffer(0):t},transformCoordinates:function(t,e){var n=t.toCoordinateArray(),i=null;return i=0===n.length?new Array(0).fill(null):fs.simplify(n,this.distanceTolerance),this.factory.getCoordinateSequenceFactory().create(i)},transformMultiPolygon:function(t,e){var n=xe.prototype.transformMultiPolygon.call(this,t,e);return this.createValidArea(n)},transformLinearRing:function(t,e){var n=e instanceof Tt,i=xe.prototype.transformLinearRing.call(this,t,e);return!n||i instanceof bt?i:null},interfaces_:function(){return[]},getClass:function(){return ds}}),gs.DPTransformer=ds,h(ps,ce),e(ps.prototype,{getIndex:function(){return this.index},getParent:function(){return this.parent},interfaces_:function(){return[]},getClass:function(){return ps}}),e(vs.prototype,{addToResult:function(t){this.resultSegs.add(t)},asLineString:function(){return this.parentLine.getFactory().createLineString(vs.extractCoordinates(this.resultSegs))},getResultSize:function(){var t=this.resultSegs.size();return 0===t?0:t+1},getParent:function(){return this.parentLine},getSegment:function(t){return this.segs[t]},getParentCoordinates:function(){return this.parentLine.getCoordinates()},getMinimumSize:function(){return this.minimumSize},asLinearRing:function(){return this.parentLine.getFactory().createLinearRing(vs.extractCoordinates(this.resultSegs))},getSegments:function(){return this.segs},init:function(){var t=this.parentLine.getCoordinates();this.segs=new Array(t.length-1).fill(null);for(var e=0;e<t.length-1;e++){var n=new ps(t[e],t[e+1],this.parentLine,e);this.segs[e]=n}},getResultCoordinates:function(){return vs.extractCoordinates(this.resultSegs)},interfaces_:function(){return[]},getClass:function(){return vs}}),vs.extractCoordinates=function(t){for(var e=new Array(t.size()+1).fill(null),n=null,i=0;i<t.size();i++)n=t.get(i),e[i]=n.p0;return e[e.length-1]=n.p1,e},e(ms.prototype,{remove:function(t){this.index.remove(new C(t.p0,t.p1),t)},add:function(){if(arguments[0]instanceof vs)for(var t=arguments[0],e=t.getSegments(),n=0;n<e.length;n++){var i=e[n];this.add(i)}else if(arguments[0]instanceof ce){var r=arguments[0];this.index.insert(new C(r.p0,r.p1),r)}},query:function(t){var e=new C(t.p0,t.p1),n=new ys(t);this.index.query(e,n);var i=n.getItems();return i},interfaces_:function(){return[]},getClass:function(){return ms}}),e(ys.prototype,{visitItem:function(t){var e=t;C.intersects(e.p0,e.p1,this.querySeg.p0,this.querySeg.p1)&&this.items.add(t)},getItems:function(){return this.items},interfaces_:function(){return[Ae]},getClass:function(){return ys}}),e(xs.prototype,{flatten:function(t,e){var n=this.linePts[t],i=this.linePts[e],r=new ce(n,i);return this.remove(this.line,t,e),this.outputIndex.add(r),r},hasBadIntersection:function(t,e,n){return!!this.hasBadOutputIntersection(n)||!!this.hasBadInputIntersection(t,e,n)},setDistanceTolerance:function(t){this.distanceTolerance=t},simplifySection:function(t,e,n){n+=1;var i=new Array(2).fill(null);if(t+1===e){var r=this.line.getSegment(t);return this.line.addToResult(r),null}var s=!0;if(this.line.getResultSize()<this.line.getMinimumSize()){var o=n+1;o<this.line.getMinimumSize()&&(s=!1)}var a=new Array(1).fill(null),u=this.findFurthestPoint(this.linePts,t,e,a);a[0]>this.distanceTolerance&&(s=!1);var l=new ce;if(l.p0=this.linePts[t],l.p1=this.linePts[e],i[0]=t,i[1]=e,this.hasBadIntersection(this.line,i,l)&&(s=!1),s){var r=this.flatten(t,e);return this.line.addToResult(r),null}this.simplifySection(t,u,n),this.simplifySection(u,e,n)},hasBadOutputIntersection:function(t){for(var e=this.outputIndex.query(t),n=e.iterator();n.hasNext();){var i=n.next();if(this.hasInteriorIntersection(i,t))return!0}return!1},findFurthestPoint:function(t,e,n,i){var r=new ce;r.p0=t[e],r.p1=t[n];for(var s=-1,o=e,a=e+1;a<n;a++){var u=t[a],l=r.distance(u);l>s&&(s=l,o=a)}return i[0]=s,o},simplify:function(t){this.line=t,this.linePts=t.getParentCoordinates(),this.simplifySection(0,this.linePts.length-1,0)},remove:function(t,e,n){for(var i=e;i<n;i++){var r=t.getSegment(i);this.inputIndex.remove(r)}},hasInteriorIntersection:function(t,e){return this.li.computeIntersection(t.p0,t.p1,e.p0,e.p1),this.li.isInteriorIntersection()},hasBadInputIntersection:function(t,e,n){for(var i=this.inputIndex.query(n),r=i.iterator();r.hasNext();){var s=r.next();if(this.hasInteriorIntersection(s,n)){if(xs.isInLineSection(t,e,s))continue;return!0}}return!1},interfaces_:function(){return[]},getClass:function(){return xs}}),xs.isInLineSection=function(t,e,n){if(n.getParent()!==t.getParent())return!1;var i=n.getIndex();return i>=e[0]&&i<e[1]},e(Es.prototype,{setDistanceTolerance:function(t){this.distanceTolerance=t},simplify:function(t){for(var e=t.iterator();e.hasNext();)this.inputIndex.add(e.next());for(var e=t.iterator();e.hasNext();){var n=new xs(this.inputIndex,this.outputIndex);n.setDistanceTolerance(this.distanceTolerance),n.simplify(e.next())}},interfaces_:function(){return[]},getClass:function(){return Es}}),e(Is.prototype,{getResultGeometry:function(){if(this.inputGeom.isEmpty())return this.inputGeom.copy();this.linestringMap=new te,this.inputGeom.apply(new Cs(this)),this.lineSimplifier.simplify(this.linestringMap.values());var t=new Ns(this.linestringMap).transform(this.inputGeom);return t},setDistanceTolerance:function(t){if(t<0)throw new i("Tolerance must be non-negative");this.lineSimplifier.setDistanceTolerance(t)},interfaces_:function(){return[]},getClass:function(){return Is}}),Is.simplify=function(t,e){var n=new Is(t);return n.setDistanceTolerance(e),n.getResultGeometry()},h(Ns,xe),e(Ns.prototype,{transformCoordinates:function(t,e){if(0===t.size())return null;if(e instanceof St){var n=this.linestringMap.get(e);return this.createCoordinateSequence(n.getResultCoordinates())}return xe.prototype.transformCoordinates.call(this,t,e)},interfaces_:function(){return[]},getClass:function(){return Ns}}),e(Cs.prototype,{filter:function(t){if(t instanceof St){var e=t;if(e.isEmpty())return null;var n=e.isClosed()?4:2,i=new vs(e,n);this.tps.linestringMap.put(e,i)}},interfaces_:function(){return[q]},getClass:function(){return Cs}}),Is.LineStringTransformer=Ns,Is.LineStringMapBuilderFilter=Cs;var Do=Object.freeze({DouglasPeuckerSimplifier:gs,TopologyPreservingSimplifier:Is});e(Ss.prototype,{splitAt:function(){if(1===arguments.length){var t=arguments[0],e=this.minimumLen/this.segLen;if(t.distance(this.seg.p0)<this.minimumLen)return this.splitPt=this.seg.pointAlong(e),null;if(t.distance(this.seg.p1)<this.minimumLen)return this.splitPt=Ss.pointAlongReverse(this.seg,e),null;this.splitPt=t}else if(2===arguments.length){var n=arguments[0],i=arguments[1],r=this.getConstrainedLength(n),s=r/this.segLen;i.equals2D(this.seg.p0)?this.splitPt=this.seg.pointAlong(s):this.splitPt=Ss.pointAlongReverse(this.seg,s)}},setMinimumLength:function(t){this.minimumLen=t},getConstrainedLength:function(t){return t<this.minimumLen?this.minimumLen:t},getSplitPoint:function(){return this.splitPt},interfaces_:function(){return[]},getClass:function(){return Ss}}),Ss.pointAlongReverse=function(t,e){var n=new g;return n.x=t.p1.x-e*(t.p1.x-t.p0.x),n.y=t.p1.y-e*(t.p1.y-t.p0.y),n},e(ws.prototype,{findSplitPoint:function(t,e){},interfaces_:function(){return[]},getClass:function(){return ws}}),e(Ls.prototype,{findSplitPoint:function(t,e){var n=t.getLineSegment(),i=n.getLength(),r=i/2,s=new Ss(n),o=Ls.projectedSplitPoint(t,e),a=2*o.distance(e)*.8,u=a;return u>r&&(u=r),s.setMinimumLength(u),s.splitAt(o),s.getSplitPoint()},interfaces_:function(){return[ws]},getClass:function(){return Ls}}),Ls.projectedSplitPoint=function(t,e){var n=t.getLineSegment(),i=n.project(e);return i},e(Rs.prototype,{interfaces_:function(){return[]},getClass:function(){return Rs}}),Rs.triArea=function(t,e,n){return(e.x-t.x)*(n.y-t.y)-(e.y-t.y)*(n.x-t.x)},Rs.isInCircleDDNormalized=function(t,e,n,i){var r=_.valueOf(t.x).selfSubtract(i.x),s=_.valueOf(t.y).selfSubtract(i.y),o=_.valueOf(e.x).selfSubtract(i.x),a=_.valueOf(e.y).selfSubtract(i.y),u=_.valueOf(n.x).selfSubtract(i.x),l=_.valueOf(n.y).selfSubtract(i.y),h=r.multiply(a).selfSubtract(o.multiply(s)),c=o.multiply(l).selfSubtract(u.multiply(a)),f=u.multiply(s).selfSubtract(r.multiply(l)),g=r.multiply(r).selfAdd(s.multiply(s)),d=o.multiply(o).selfAdd(a.multiply(a)),p=u.multiply(u).selfAdd(l.multiply(l)),v=g.selfMultiply(c).selfAdd(d.selfMultiply(f)).selfAdd(p.selfMultiply(h)),m=v.doubleValue()>0;return m},Rs.checkRobustInCircle=function(t,e,n,i){var r=Rs.isInCircleNonRobust(t,e,n,i),s=Rs.isInCircleDDSlow(t,e,n,i),o=Rs.isInCircleCC(t,e,n,i),a=Si.circumcentre(t,e,n);A.out.println("p radius diff a = "+Math.abs(i.distance(a)-t.distance(a))/t.distance(a)),r===s&&r===o||(A.out.println("inCircle robustness failure (double result = "+r+", DD result = "+s+", CC result = "+o+")"),A.out.println(se.toLineString(new Gt([t,e,n,i]))),A.out.println("Circumcentre = "+se.toPoint(a)+" radius = "+t.distance(a)),A.out.println("p radius diff a = "+Math.abs(i.distance(a)/t.distance(a)-1)),A.out.println("p radius diff b = "+Math.abs(i.distance(a)/e.distance(a)-1)),A.out.println("p radius diff c = "+Math.abs(i.distance(a)/n.distance(a)-1)),A.out.println())},Rs.isInCircleDDFast=function(t,e,n,i){var r=_.sqr(t.x).selfAdd(_.sqr(t.y)).selfMultiply(Rs.triAreaDDFast(e,n,i)),s=_.sqr(e.x).selfAdd(_.sqr(e.y)).selfMultiply(Rs.triAreaDDFast(t,n,i)),o=_.sqr(n.x).selfAdd(_.sqr(n.y)).selfMultiply(Rs.triAreaDDFast(t,e,i)),a=_.sqr(i.x).selfAdd(_.sqr(i.y)).selfMultiply(Rs.triAreaDDFast(t,e,n)),u=r.selfSubtract(s).selfAdd(o).selfSubtract(a),l=u.doubleValue()>0;return l},Rs.isInCircleCC=function(t,e,n,i){var r=Si.circumcentre(t,e,n),s=t.distance(r),o=i.distance(r)-s;return o<=0},Rs.isInCircleNormalized=function(t,e,n,i){var r=t.x-i.x,s=t.y-i.y,o=e.x-i.x,a=e.y-i.y,u=n.x-i.x,l=n.y-i.y,h=r*a-o*s,c=o*l-u*a,f=u*s-r*l,g=r*r+s*s,d=o*o+a*a,p=u*u+l*l,v=g*c+d*f+p*h;
 return v>0},Rs.isInCircleDDSlow=function(t,e,n,i){var r=_.valueOf(i.x),s=_.valueOf(i.y),o=_.valueOf(t.x),a=_.valueOf(t.y),u=_.valueOf(e.x),l=_.valueOf(e.y),h=_.valueOf(n.x),c=_.valueOf(n.y),f=o.multiply(o).add(a.multiply(a)).multiply(Rs.triAreaDDSlow(u,l,h,c,r,s)),g=u.multiply(u).add(l.multiply(l)).multiply(Rs.triAreaDDSlow(o,a,h,c,r,s)),d=h.multiply(h).add(c.multiply(c)).multiply(Rs.triAreaDDSlow(o,a,u,l,r,s)),p=r.multiply(r).add(s.multiply(s)).multiply(Rs.triAreaDDSlow(o,a,u,l,h,c)),v=f.subtract(g).add(d).subtract(p),m=v.doubleValue()>0;return m},Rs.isInCircleNonRobust=function(t,e,n,i){var r=(t.x*t.x+t.y*t.y)*Rs.triArea(e,n,i)-(e.x*e.x+e.y*e.y)*Rs.triArea(t,n,i)+(n.x*n.x+n.y*n.y)*Rs.triArea(t,e,i)-(i.x*i.x+i.y*i.y)*Rs.triArea(t,e,n)>0;return r},Rs.isInCircleRobust=function(t,e,n,i){return Rs.isInCircleNormalized(t,e,n,i)},Rs.triAreaDDSlow=function(t,e,n,i,r,s){return n.subtract(t).multiply(s.subtract(e)).subtract(i.subtract(e).multiply(r.subtract(t)))},Rs.triAreaDDFast=function(t,e,n){var i=_.valueOf(e.x).selfSubtract(t.x).selfMultiply(_.valueOf(n.y).selfSubtract(t.y)),r=_.valueOf(e.y).selfSubtract(t.y).selfMultiply(_.valueOf(n.x).selfSubtract(t.x));return i.selfSubtract(r)},e(Ts.prototype,{circleCenter:function(t,e){var n=new Ts(this.getX(),this.getY()),i=this.bisector(n,t),r=this.bisector(t,e),s=new F(i,r),o=null;try{o=new Ts(s.getX(),s.getY())}catch(i){if(!(i instanceof w))throw i;A.err.println("a: "+n+"  b: "+t+"  c: "+e),A.err.println(i)}finally{}return o},dot:function(t){return this.p.x*t.getX()+this.p.y*t.getY()},magn:function(){return Math.sqrt(this.p.x*this.p.x+this.p.y*this.p.y)},getZ:function(){return this.p.z},bisector:function(t,e){var n=e.getX()-t.getX(),i=e.getY()-t.getY(),r=new F(t.getX()+n/2,t.getY()+i/2,1),s=new F(t.getX()-i+n/2,t.getY()+n+i/2,1);return new F(r,s)},equals:function(){if(1===arguments.length){var t=arguments[0];return this.p.x===t.getX()&&this.p.y===t.getY()}if(2===arguments.length){var e=arguments[0],n=arguments[1];return this.p.distance(e.getCoordinate())<n}},getCoordinate:function(){return this.p},isInCircle:function(t,e,n){return Rs.isInCircleRobust(t.p,e.p,n.p,this.p)},interpolateZValue:function(t,e,n){var i=t.getX(),r=t.getY(),s=e.getX()-i,o=n.getX()-i,a=e.getY()-r,u=n.getY()-r,l=s*u-o*a,h=this.getX()-i,c=this.getY()-r,f=(u*h-o*c)/l,g=(-a*h+s*c)/l,d=t.getZ()+f*(e.getZ()-t.getZ())+g*(n.getZ()-t.getZ());return d},midPoint:function(t){var e=(this.p.x+t.getX())/2,n=(this.p.y+t.getY())/2,i=(this.p.z+t.getZ())/2;return new Ts(e,n,i)},rightOf:function(t){return this.isCCW(t.dest(),t.orig())},isCCW:function(t,e){return(t.p.x-this.p.x)*(e.p.y-this.p.y)-(t.p.y-this.p.y)*(e.p.x-this.p.x)>0},getX:function(){return this.p.x},crossProduct:function(t){return this.p.x*t.getY()-this.p.y*t.getX()},setZ:function(t){this.p.z=t},times:function(t){return new Ts(t*this.p.x,t*this.p.y)},cross:function(){return new Ts(this.p.y,(-this.p.x))},leftOf:function(t){return this.isCCW(t.orig(),t.dest())},toString:function(){return"POINT ("+this.p.x+" "+this.p.y+")"},sub:function(t){return new Ts(this.p.x-t.getX(),this.p.y-t.getY())},getY:function(){return this.p.y},classify:function(t,e){var n=this,i=e.sub(t),r=n.sub(t),s=i.crossProduct(r);return s>0?Ts.LEFT:s<0?Ts.RIGHT:i.getX()*r.getX()<0||i.getY()*r.getY()<0?Ts.BEHIND:i.magn()<r.magn()?Ts.BEYOND:t.equals(n)?Ts.ORIGIN:e.equals(n)?Ts.DESTINATION:Ts.BETWEEN},sum:function(t){return new Ts(this.p.x+t.getX(),this.p.y+t.getY())},distance:function(t,e){return Math.sqrt(Math.pow(e.getX()-t.getX(),2)+Math.pow(e.getY()-t.getY(),2))},circumRadiusRatio:function(t,e){var n=this.circleCenter(t,e),i=this.distance(n,t),r=this.distance(this,t),s=this.distance(t,e);return s<r&&(r=s),s=this.distance(e,this),s<r&&(r=s),i/r},interfaces_:function(){return[]},getClass:function(){return Ts}}),Ts.interpolateZ=function(){if(3===arguments.length){var t=arguments[0],e=arguments[1],n=arguments[2],i=e.distance(n),r=t.distance(e),s=n.z-e.z,o=e.z+s*(r/i);return o}if(4===arguments.length){var a=arguments[0],u=arguments[1],l=arguments[2],h=arguments[3],c=u.x,f=u.y,g=l.x-c,d=h.x-c,p=l.y-f,v=h.y-f,m=g*v-d*p,y=a.x-c,x=a.y-f,E=(v*y-d*x)/m,I=(-p*y+g*x)/m,N=u.z+E*(l.z-u.z)+I*(h.z-u.z);return N}},Ts.LEFT=0,Ts.RIGHT=1,Ts.BEYOND=2,Ts.BEHIND=3,Ts.BETWEEN=4,Ts.ORIGIN=5,Ts.DESTINATION=6,h(Ps,Ts),e(Ps.prototype,{getConstraint:function(){return this.constraint},setOnConstraint:function(t){this._isOnConstraint=t},merge:function(t){t._isOnConstraint&&(this._isOnConstraint=!0,this.constraint=t.constraint)},isOnConstraint:function(){return this._isOnConstraint},setConstraint:function(t){this._isOnConstraint=!0,this.constraint=t},interfaces_:function(){return[]},getClass:function(){return Ps}}),e(bs.prototype,{equalsNonOriented:function(t){return!!this.equalsOriented(t)||!!this.equalsOriented(t.sym())},toLineSegment:function(){return new ce(this.vertex.getCoordinate(),this.dest().getCoordinate())},dest:function(){return this.sym().orig()},oNext:function(){return this.next},equalsOriented:function(t){return!(!this.orig().getCoordinate().equals2D(t.orig().getCoordinate())||!this.dest().getCoordinate().equals2D(t.dest().getCoordinate()))},dNext:function(){return this.sym().oNext().sym()},lPrev:function(){return this.next.sym()},rPrev:function(){return this.sym().oNext()},rot:function(){return this._rot},oPrev:function(){return this._rot.next._rot},sym:function(){return this._rot._rot},setOrig:function(t){this.vertex=t},lNext:function(){return this.invRot().oNext().rot()},getLength:function(){return this.orig().getCoordinate().distance(this.dest().getCoordinate())},invRot:function(){return this._rot.sym()},setDest:function(t){this.sym().setOrig(t)},setData:function(t){this.data=t},getData:function(){return this.data},delete:function(){this._rot=null},orig:function(){return this.vertex},rNext:function(){return this._rot.next.invRot()},toString:function(){var t=this.vertex.getCoordinate(),e=this.dest().getCoordinate();return se.toLineString(t,e)},isLive:function(){return null!==this._rot},getPrimary:function(){return this.orig().getCoordinate().compareTo(this.dest().getCoordinate())<=0?this:this.sym()},dPrev:function(){return this.invRot().oNext().invRot()},setNext:function(t){this.next=t},interfaces_:function(){return[]},getClass:function(){return bs}}),bs.makeEdge=function(t,e){var n=new bs,i=new bs,r=new bs,s=new bs;n._rot=i,i._rot=r,r._rot=s,s._rot=n,n.setNext(n),i.setNext(s),r.setNext(r),s.setNext(i);var o=n;return o.setOrig(t),o.setDest(e),o},bs.swap=function(t){var e=t.oPrev(),n=t.sym().oPrev();bs.splice(t,e),bs.splice(t.sym(),n),bs.splice(t,e.lNext()),bs.splice(t.sym(),n.lNext()),t.setOrig(e.dest()),t.setDest(n.dest())},bs.splice=function(t,e){var n=t.oNext().rot(),i=e.oNext().rot(),r=e.oNext(),s=t.oNext(),o=i.oNext(),a=n.oNext();t.setNext(r),e.setNext(s),n.setNext(o),i.setNext(a)},bs.connect=function(t,e){var n=bs.makeEdge(t.dest(),e.orig());return bs.splice(n,t.lNext()),bs.splice(n.sym(),e),n},e(Os.prototype,{insertSite:function(t){var e=this.subdiv.locate(t);if(this.subdiv.isVertexOfEdge(e,t))return e;this.subdiv.isOnEdge(e,t.getCoordinate())&&(e=e.oPrev(),this.subdiv.delete(e.oNext()));var n=this.subdiv.makeEdge(e.orig(),t);bs.splice(n,e);var i=n;do n=this.subdiv.connect(e,n.sym()),e=n.oPrev();while(e.lNext()!==i);for(;;){var r=e.oPrev();if(r.dest().rightOf(e)&&t.isInCircle(e.orig(),r.dest(),e.dest()))bs.swap(e),e=e.oPrev();else{if(e.oNext()===i)return n;e=e.oNext().lPrev()}}},insertSites:function(t){for(var e=t.iterator();e.hasNext();){var n=e.next();this.insertSite(n)}},interfaces_:function(){return[]},getClass:function(){return Os}}),e(_s.prototype,{locate:function(t){},interfaces_:function(){return[]},getClass:function(){return _s}}),e(Ms.prototype,{init:function(){this.lastEdge=this.findEdge()},locate:function(t){this.lastEdge.isLive()||this.init();var e=this.subdiv.locateFromEdge(t,this.lastEdge);return this.lastEdge=e,e},findEdge:function(){var t=this.subdiv.getEdges();return t.iterator().next()},interfaces_:function(){return[_s]},getClass:function(){return Ms}}),h(Ds,l),e(Ds.prototype,{getSegment:function(){return this.seg},interfaces_:function(){return[]},getClass:function(){return Ds}}),Ds.msgWithSpatial=function(t,e){return null!==e?t+" [ "+e+" ]":t},e(As.prototype,{visit:function(t){},interfaces_:function(){return[]},getClass:function(){return As}}),e(Fs.prototype,{getTriangleVertices:function(t){var e=new Bs;return this.visitTriangles(e,t),e.getTriangleVertices()},isFrameVertex:function(t){return!!t.equals(this.frameVertex[0])||(!!t.equals(this.frameVertex[1])||!!t.equals(this.frameVertex[2]))},isVertexOfEdge:function(t,e){return!(!e.equals(t.orig(),this.tolerance)&&!e.equals(t.dest(),this.tolerance))},connect:function(t,e){var n=bs.connect(t,e);return this.quadEdges.add(n),n},getVoronoiCellPolygon:function(t,e){var n=new I,i=t;do{var r=t.rot().orig().getCoordinate();n.add(r),t=t.oPrev()}while(t!==i);var s=new N;s.addAll(n,!1),s.closeRing(),s.size()<4&&(A.out.println(s),s.add(s.get(s.size()-1),!0));var o=s.toCoordinateArray(),a=e.createPolygon(e.createLinearRing(o),null),u=i.orig();return a.setUserData(u.getCoordinate()),a},setLocator:function(t){this.locator=t},initSubdiv:function(){var t=this.makeEdge(this.frameVertex[0],this.frameVertex[1]),e=this.makeEdge(this.frameVertex[1],this.frameVertex[2]);bs.splice(t.sym(),e);var n=this.makeEdge(this.frameVertex[2],this.frameVertex[0]);return bs.splice(e.sym(),n),bs.splice(n.sym(),t),t},isFrameBorderEdge:function(t){var e=new Array(3).fill(null);Fs.getTriangleEdges(t,e);var n=new Array(3).fill(null);Fs.getTriangleEdges(t.sym(),n);var i=t.lNext().dest();if(this.isFrameVertex(i))return!0;var r=t.sym().lNext().dest();return!!this.isFrameVertex(r)},makeEdge:function(t,e){var n=bs.makeEdge(t,e);return this.quadEdges.add(n),n},visitTriangles:function(t,e){this.visitedKey++;var n=new pe;n.push(this.startingEdge);for(var i=new J;!n.empty();){var r=n.pop();if(!i.contains(r)){var s=this.fetchTriangleToVisit(r,n,e,i);null!==s&&t.visit(s)}}},isFrameEdge:function(t){return!(!this.isFrameVertex(t.orig())&&!this.isFrameVertex(t.dest()))},isOnEdge:function(t,e){this.seg.setCoordinates(t.orig().getCoordinate(),t.dest().getCoordinate());var n=this.seg.distance(e);return n<this.edgeCoincidenceTolerance},getEnvelope:function(){return new C(this.frameEnv)},createFrame:function(t){var e=t.getWidth(),n=t.getHeight(),i=0;i=e>n?10*e:10*n,this.frameVertex[0]=new Ts((t.getMaxX()+t.getMinX())/2,t.getMaxY()+i),this.frameVertex[1]=new Ts(t.getMinX()-i,t.getMinY()-i),this.frameVertex[2]=new Ts(t.getMaxX()+i,t.getMinY()-i),this.frameEnv=new C(this.frameVertex[0].getCoordinate(),this.frameVertex[1].getCoordinate()),this.frameEnv.expandToInclude(this.frameVertex[2].getCoordinate())},getTriangleCoordinates:function(t){var e=new zs;return this.visitTriangles(e,t),e.getTriangles()},getVertices:function(t){for(var e=new J,n=this.quadEdges.iterator();n.hasNext();){var i=n.next(),r=i.orig();!t&&this.isFrameVertex(r)||e.add(r);var s=i.dest();!t&&this.isFrameVertex(s)||e.add(s)}return e},fetchTriangleToVisit:function(t,e,n,i){var r=t,s=0,o=!1;do{this.triEdges[s]=r,this.isFrameEdge(r)&&(o=!0);var a=r.sym();i.contains(a)||e.push(a),i.add(r),s++,r=r.lNext()}while(r!==t);return o&&!n?null:this.triEdges},getEdges:function(){if(0===arguments.length)return this.quadEdges;if(1===arguments.length){for(var t=arguments[0],e=this.getPrimaryEdges(!1),n=new Array(e.size()).fill(null),i=0,r=e.iterator();r.hasNext();){var s=r.next();n[i++]=t.createLineString([s.orig().getCoordinate(),s.dest().getCoordinate()])}return t.createMultiLineString(n)}},getVertexUniqueEdges:function(t){for(var e=new I,n=new J,i=this.quadEdges.iterator();i.hasNext();){var r=i.next(),s=r.orig();n.contains(s)||(n.add(s),!t&&this.isFrameVertex(s)||e.add(r));var o=r.sym(),a=o.orig();n.contains(a)||(n.add(a),!t&&this.isFrameVertex(a)||e.add(o))}return e},getTriangleEdges:function(t){var e=new qs;return this.visitTriangles(e,t),e.getTriangleEdges()},getPrimaryEdges:function(t){this.visitedKey++;var e=new I,n=new pe;n.push(this.startingEdge);for(var i=new J;!n.empty();){var r=n.pop();if(!i.contains(r)){var s=r.getPrimary();!t&&this.isFrameEdge(s)||e.add(s),n.push(r.oNext()),n.push(r.sym().oNext()),i.add(r),i.add(r.sym())}}return e},delete:function(t){bs.splice(t,t.oPrev()),bs.splice(t.sym(),t.sym().oPrev());var e=t.sym(),n=t.rot(),i=t.rot().sym();this.quadEdges.remove(t),this.quadEdges.remove(e),this.quadEdges.remove(n),this.quadEdges.remove(i),t.delete(),e.delete(),n.delete(),i.delete()},locateFromEdge:function(t,e){for(var n=0,i=this.quadEdges.size(),r=e;;){if(n++,n>i)throw new Ds(r.toLineSegment());if(t.equals(r.orig())||t.equals(r.dest()))break;if(t.rightOf(r))r=r.sym();else if(t.rightOf(r.oNext())){if(t.rightOf(r.dPrev()))break;r=r.dPrev()}else r=r.oNext()}return r},getTolerance:function(){return this.tolerance},getVoronoiCellPolygons:function(t){this.visitTriangles(new Gs,!0);for(var e=new I,n=this.getVertexUniqueEdges(!1),i=n.iterator();i.hasNext();){var r=i.next();e.add(this.getVoronoiCellPolygon(r,t))}return e},getVoronoiDiagram:function(t){var e=this.getVoronoiCellPolygons(t);return t.createGeometryCollection(ie.toGeometryArray(e))},getTriangles:function(t){for(var e=this.getTriangleCoordinates(!1),n=new Array(e.size()).fill(null),i=0,r=e.iterator();r.hasNext();){var s=r.next();n[i++]=t.createPolygon(t.createLinearRing(s),null)}return t.createGeometryCollection(n)},insertSite:function(t){var e=this.locate(t);if(t.equals(e.orig(),this.tolerance)||t.equals(e.dest(),this.tolerance))return e;var n=this.makeEdge(e.orig(),t);bs.splice(n,e);var i=n;do n=this.connect(e,n.sym()),e=n.oPrev();while(e.lNext()!==i);return i},locate:function(){if(1===arguments.length){if(arguments[0]instanceof Ts){var t=arguments[0];return this.locator.locate(t)}if(arguments[0]instanceof g){var e=arguments[0];return this.locator.locate(new Ts(e))}}else if(2===arguments.length){var n=arguments[0],i=arguments[1],r=this.locator.locate(new Ts(n));if(null===r)return null;var s=r;r.dest().getCoordinate().equals2D(n)&&(s=r.sym());var o=s;do{if(o.dest().getCoordinate().equals2D(i))return o;o=o.oNext()}while(o!==s);return null}},interfaces_:function(){return[]},getClass:function(){return Fs}}),Fs.getTriangleEdges=function(t,e){if(e[0]=t,e[1]=e[0].lNext(),e[2]=e[1].lNext(),e[2].lNext()!==e[0])throw new i("Edges do not form a triangle")},e(Gs.prototype,{visit:function(t){for(var e=t[0].orig().getCoordinate(),n=t[1].orig().getCoordinate(),i=t[2].orig().getCoordinate(),r=Si.circumcentre(e,n,i),s=new Ts(r),o=0;o<3;o++)t[o].rot().setOrig(s)},interfaces_:function(){return[As]},getClass:function(){return Gs}}),e(qs.prototype,{getTriangleEdges:function(){return this.triList},visit:function(t){this.triList.add(t.clone())},interfaces_:function(){return[As]},getClass:function(){return qs}}),e(Bs.prototype,{visit:function(t){this.triList.add([t[0].orig(),t[1].orig(),t[2].orig()])},getTriangleVertices:function(){return this.triList},interfaces_:function(){return[As]},getClass:function(){return Bs}}),e(zs.prototype,{checkTriangleSize:function(t){var e="";t.length>=2?e=se.toLineString(t[0],t[1]):t.length>=1&&(e=se.toPoint(t[0]))},visit:function(t){this.coordList.clear();for(var e=0;e<3;e++){var n=t[e].orig();this.coordList.add(n.getCoordinate())}if(this.coordList.size()>0){this.coordList.closeRing();var i=this.coordList.toCoordinateArray();if(4!==i.length)return null;this.triCoords.add(i)}},getTriangles:function(){return this.triCoords},interfaces_:function(){return[As]},getClass:function(){return zs}}),Fs.TriangleCircumcentreVisitor=Gs,Fs.TriangleEdgesListVisitor=qs,Fs.TriangleVertexListVisitor=Bs,Fs.TriangleCoordinatesVisitor=zs,Fs.EDGE_COINCIDENCE_TOL_FACTOR=1e3,e(Vs.prototype,{getLineSegment:function(){return this.ls},getEndZ:function(){var t=this.ls.getCoordinate(1);return t.z},getStartZ:function(){var t=this.ls.getCoordinate(0);return t.z},intersection:function(t){return this.ls.intersection(t.getLineSegment())},getStart:function(){return this.ls.getCoordinate(0)},getEnd:function(){return this.ls.getCoordinate(1)},getEndY:function(){var t=this.ls.getCoordinate(1);return t.y},getStartX:function(){var t=this.ls.getCoordinate(0);return t.x},equalsTopo:function(t){return this.ls.equalsTopo(t.getLineSegment())},getStartY:function(){var t=this.ls.getCoordinate(0);return t.y},setData:function(t){this.data=t},getData:function(){return this.data},getEndX:function(){var t=this.ls.getCoordinate(1);return t.x},toString:function(){return this.ls.toString()},interfaces_:function(){return[]},getClass:function(){return Vs}}),e(ks.prototype,{visit:function(t){},interfaces_:function(){return[]},getClass:function(){return ks}}),e(Ys.prototype,{isRepeated:function(){return this.count>1},getRight:function(){return this.right},getCoordinate:function(){return this.p},setLeft:function(t){this.left=t},getX:function(){return this.p.x},getData:function(){return this.data},getCount:function(){return this.count},getLeft:function(){return this.left},getY:function(){return this.p.y},increment:function(){this.count=this.count+1},setRight:function(t){this.right=t},interfaces_:function(){return[]},getClass:function(){return Ys}}),e(Us.prototype,{insert:function(){if(1===arguments.length){var t=arguments[0];return this.insert(t,null)}if(2===arguments.length){var e=arguments[0],n=arguments[1];if(null===this.root)return this.root=new Ys(e,n),this.root;if(this.tolerance>0){var i=this.findBestMatchNode(e);if(null!==i)return i.increment(),i}return this.insertExact(e,n)}},query:function(){var t=arguments,e=this;if(1===arguments.length){var n=arguments[0],i=new I;return this.query(n,i),i}if(2===arguments.length)if(arguments[0]instanceof C&&R(arguments[1],y))!function(){var n=t[0],i=t[1];e.queryNode(e.root,n,!0,{interfaces_:function(){return[ks]},visit:function(t){i.add(t)}})}();else if(arguments[0]instanceof C&&R(arguments[1],ks)){var r=arguments[0],s=arguments[1];this.queryNode(this.root,r,!0,s)}},queryNode:function(t,e,n,i){if(null===t)return null;var r=null,s=null,o=null;n?(r=e.getMinX(),s=e.getMaxX(),o=t.getX()):(r=e.getMinY(),s=e.getMaxY(),o=t.getY());var a=r<o,u=o<=s;a&&this.queryNode(t.getLeft(),e,!n,i),e.contains(t.getCoordinate())&&i.visit(t),u&&this.queryNode(t.getRight(),e,!n,i)},findBestMatchNode:function(t){var e=new Xs(t,this.tolerance);return this.query(e.queryEnvelope(),e),e.getNode()},isEmpty:function(){return null===this.root},insertExact:function(t,e){for(var n=this.root,i=this.root,r=!0,s=!0;null!==n;){if(null!==n){var o=t.distance(n.getCoordinate())<=this.tolerance;if(o)return n.increment(),n}s=r?t.x<n.getX():t.y<n.getY(),i=n,n=s?n.getLeft():n.getRight(),r=!r}this.numberOfNodes=this.numberOfNodes+1;var a=new Ys(t,e);return s?i.setLeft(a):i.setRight(a),a},interfaces_:function(){return[]},getClass:function(){return Us}}),Us.toCoordinates=function(){if(1===arguments.length){var t=arguments[0];return Us.toCoordinates(t,!1)}if(2===arguments.length){for(var e=arguments[0],n=arguments[1],i=new N,r=e.iterator();r.hasNext();)for(var s=r.next(),o=n?s.getCount():1,a=0;a<o;a++)i.add(s.getCoordinate(),!0);return i.toCoordinateArray()}},e(Xs.prototype,{visit:function(t){var e=this.p.distance(t.getCoordinate()),n=e<=this.tolerance;if(!n)return null;var i=!1;(null===this.matchNode||e<this.matchDist||null!==this.matchNode&&e===this.matchDist&&t.getCoordinate().compareTo(this.matchNode.getCoordinate())<1)&&(i=!0),i&&(this.matchNode=t,this.matchDist=e)},queryEnvelope:function(){var t=new C(this.p);return t.expandBy(this.tolerance),t},getNode:function(){return this.matchNode},interfaces_:function(){return[ks]},getClass:function(){return Xs}}),Us.BestMatchVisitor=Xs,e(Hs.prototype,{getInitialVertices:function(){return this.initialVertices},getKDT:function(){return this.kdt},enforceConstraints:function(){this.addConstraintVertices();var t=0,e=0;do e=this.enforceGabriel(this.segments),t++;while(e>0&&t<Hs.MAX_SPLIT_ITER)},insertSites:function(t){for(var e=t.iterator();e.hasNext();){var n=e.next();this.insertSite(n)}},getVertexFactory:function(){return this.vertexFactory},getPointArray:function(){for(var t=new Array(this.initialVertices.size()+this.segVertices.size()).fill(null),e=0,n=this.initialVertices.iterator();n.hasNext();){var i=n.next();t[e++]=i.getCoordinate()}for(var r=this.segVertices.iterator();r.hasNext();){var i=r.next();t[e++]=i.getCoordinate()}return t},setConstraints:function(t,e){this.segments=t,this.segVertices=e},computeConvexHull:function(){var t=new ie,e=this.getPointArray(),n=new me(e,t);this.convexHull=n.getConvexHull()},addConstraintVertices:function(){this.computeConvexHull(),this.insertSites(this.segVertices)},findNonGabrielPoint:function(t){var e=t.getStart(),n=t.getEnd(),i=new g((e.x+n.x)/2,(e.y+n.y)/2),s=e.distance(i),o=new C(i);o.expandBy(s);for(var a=this.kdt.query(o),u=null,l=r.MAX_VALUE,h=a.iterator();h.hasNext();){var c=h.next(),f=c.getCoordinate();if(!f.equals2D(e)&&!f.equals2D(n)){var d=i.distance(f);if(d<s){var p=d;(null===u||p<l)&&(u=f,l=p)}}}return u},getConstraintSegments:function(){return this.segments},setSplitPointFinder:function(t){this.splitFinder=t},getConvexHull:function(){return this.convexHull},getTolerance:function(){return this.tolerance},enforceGabriel:function(t){for(var e=new I,n=0,i=new I,r=t.iterator();r.hasNext();){var s=r.next(),o=this.findNonGabrielPoint(s);if(null!==o){this.splitPt=this.splitFinder.findSplitPoint(s,o);var a=this.createVertex(this.splitPt,s),u=(this.insertSite(a),new Vs(s.getStartX(),s.getStartY(),s.getStartZ(),a.getX(),a.getY(),a.getZ(),s.getData())),l=new Vs(a.getX(),a.getY(),a.getZ(),s.getEndX(),s.getEndY(),s.getEndZ(),s.getData());e.add(u),e.add(l),i.add(s),n+=1}}return t.removeAll(i),t.addAll(e),n},createVertex:function(){if(1===arguments.length){var t=arguments[0],e=null;return e=null!==this.vertexFactory?this.vertexFactory.createVertex(t,null):new Ps(t)}if(2===arguments.length){var n=arguments[0],i=arguments[1],e=null;return e=null!==this.vertexFactory?this.vertexFactory.createVertex(n,i):new Ps(n),e.setOnConstraint(!0),e}},getSubdivision:function(){return this.subdiv},computeBoundingBox:function(){var t=Hs.computeVertexEnvelope(this.initialVertices),e=Hs.computeVertexEnvelope(this.segVertices),n=new C(t);n.expandToInclude(e);var i=.2*n.getWidth(),r=.2*n.getHeight(),s=Math.max(i,r);this.computeAreaEnv=new C(n),this.computeAreaEnv.expandBy(s)},setVertexFactory:function(t){this.vertexFactory=t},formInitialDelaunay:function(){this.computeBoundingBox(),this.subdiv=new Fs(this.computeAreaEnv,this.tolerance),this.subdiv.setLocator(new Ms(this.subdiv)),this.incDel=new Os(this.subdiv),this.insertSites(this.initialVertices)},insertSite:function(){if(arguments[0]instanceof Ps){var t=arguments[0],e=this.kdt.insert(t.getCoordinate(),t);if(e.isRepeated()){var n=e.getData();return n.merge(t),n}return this.incDel.insertSite(t),t}if(arguments[0]instanceof g){var i=arguments[0];this.insertSite(this.createVertex(i))}},interfaces_:function(){return[]},getClass:function(){return Hs}}),Hs.computeVertexEnvelope=function(t){for(var e=new C,n=t.iterator();n.hasNext();){var i=n.next();e.expandToInclude(i.getCoordinate())}return e},Hs.MAX_SPLIT_ITER=99,e(Ws.prototype,{create:function(){if(null!==this.subdiv)return null;var t=Ws.envelope(this.siteCoords),e=Ws.toVertices(this.siteCoords);this.subdiv=new Fs(t,this.tolerance);var n=new Os(this.subdiv);n.insertSites(e)},setTolerance:function(t){this.tolerance=t},setSites:function(){if(arguments[0]instanceof B){var t=arguments[0];this.siteCoords=Ws.extractUniqueCoordinates(t)}else if(R(arguments[0],v)){var e=arguments[0];this.siteCoords=Ws.unique(H.toCoordinateArray(e))}},getEdges:function(t){return this.create(),this.subdiv.getEdges(t)},getSubdivision:function(){return this.create(),this.subdiv},getTriangles:function(t){return this.create(),this.subdiv.getTriangles(t)},interfaces_:function(){return[]},getClass:function(){return Ws}}),Ws.extractUniqueCoordinates=function(t){if(null===t)return new N;var e=t.getCoordinates();return Ws.unique(e)},Ws.envelope=function(t){for(var e=new C,n=t.iterator();n.hasNext();){var i=n.next();e.expandToInclude(i)}return e},Ws.unique=function(t){var e=H.copyDeep(t);ut.sort(e);var n=new N(e,(!1));return n},Ws.toVertices=function(t){for(var e=new I,n=t.iterator();n.hasNext();){var i=n.next();e.add(new Ts(i))}return e},e(js.prototype,{createSiteVertices:function(t){for(var e=new I,n=t.iterator();n.hasNext();){var i=n.next();this.constraintVertexMap.containsKey(i)||e.add(new Ps(i))}return e},create:function(){if(null!==this.subdiv)return null;var t=Ws.envelope(this.siteCoords),e=new I;null!==this.constraintLines&&(t.expandToInclude(this.constraintLines.getEnvelopeInternal()),this.createVertices(this.constraintLines),e=js.createConstraintSegments(this.constraintLines));var n=this.createSiteVertices(this.siteCoords),i=new Hs(n,this.tolerance);i.setConstraints(e,new I(this.constraintVertexMap.values())),i.formInitialDelaunay(),i.enforceConstraints(),this.subdiv=i.getSubdivision()},setTolerance:function(t){this.tolerance=t},setConstraints:function(t){this.constraintLines=t},setSites:function(t){this.siteCoords=Ws.extractUniqueCoordinates(t)},getEdges:function(t){return this.create(),this.subdiv.getEdges(t)},getSubdivision:function(){return this.create(),this.subdiv},getTriangles:function(t){return this.create(),this.subdiv.getTriangles(t)},createVertices:function(t){for(var e=t.getCoordinates(),n=0;n<e.length;n++){var i=new Ps(e[n]);this.constraintVertexMap.put(e[n],i)}},interfaces_:function(){return[]},getClass:function(){return js}}),js.createConstraintSegments=function(){if(1===arguments.length){for(var t=arguments[0],e=kn.getLines(t),n=new I,i=e.iterator();i.hasNext();){var r=i.next();js.createConstraintSegments(r,n)}return n}if(2===arguments.length)for(var s=arguments[0],o=arguments[1],a=s.getCoordinates(),i=1;i<a.length;i++)o.add(new Vs(a[i-1],a[i]))},e(Ks.prototype,{create:function(){if(null!==this.subdiv)return null;var t=Ws.envelope(this.siteCoords);this.diagramEnv=t;var e=Math.max(this.diagramEnv.getWidth(),this.diagramEnv.getHeight());this.diagramEnv.expandBy(e),null!==this.clipEnv&&this.diagramEnv.expandToInclude(this.clipEnv);var n=Ws.toVertices(this.siteCoords);this.subdiv=new Fs(t,this.tolerance);var i=new Os(this.subdiv);i.insertSites(n)},getDiagram:function(t){this.create();var e=this.subdiv.getVoronoiDiagram(t);return Ks.clipGeometryCollection(e,this.diagramEnv)},setTolerance:function(t){this.tolerance=t},setSites:function(){if(arguments[0]instanceof B){var t=arguments[0];this.siteCoords=Ws.extractUniqueCoordinates(t)}else if(R(arguments[0],v)){var e=arguments[0];this.siteCoords=Ws.unique(H.toCoordinateArray(e))}},setClipEnvelope:function(t){this.clipEnv=t},getSubdivision:function(){return this.create(),this.subdiv},interfaces_:function(){return[]},getClass:function(){return Ks}}),Ks.clipGeometryCollection=function(t,e){for(var n=t.getFactory().toGeometry(e),i=new I,r=0;r<t.getNumGeometries();r++){var s=t.getGeometryN(r),o=null;e.contains(s.getEnvelopeInternal())?o=s:e.intersects(s.getEnvelopeInternal())&&(o=n.intersection(s),o.setUserData(s.getUserData())),null===o||o.isEmpty()||i.add(o)}return t.getFactory().createGeometryCollection(ie.toGeometryArray(i))};var Ao=Object.freeze({Vertex:Ts}),Fo=Object.freeze({ConformingDelaunayTriangulationBuilder:js,DelaunayTriangulationBuilder:Ws,VoronoiDiagramBuilder:Ks,quadedge:Ao});e(Zs.prototype,{interfaces_:function(){return[]},getClass:function(){return Zs}}),Zs.union=function(t,e){if(t.isEmpty()||e.isEmpty()){if(t.isEmpty()&&e.isEmpty())return ii.createEmptyResult(ii.UNION,t,e,t.getFactory());if(t.isEmpty())return e.copy();if(e.isEmpty())return t.copy()}return t.checkNotGeometryCollection(t),t.checkNotGeometryCollection(e),si.overlayOp(t,e,ii.UNION)},e(B.prototype,{equalsTopo:function(t){return!!this.getEnvelopeInternal().equals(t.getEnvelopeInternal())&&rs.relate(this,t).isEquals(this.getDimension(),t.getDimension())},union:function(){if(0===arguments.length)return ls.union(this);if(1===arguments.length){var t=arguments[0];return Zs.union(this,t)}},isValid:function(){return Ur.isValid(this)},intersection:function(t){if(this.isEmpty()||t.isEmpty())return ii.createEmptyResult(ii.INTERSECTION,this,t,this.factory);if(this.isGeometryCollection()){var e=t;return hn.map(this,{interfaces_:function(){return[MapOp]},map:function(t){return t.intersection(e)}})}return this.checkNotGeometryCollection(this),this.checkNotGeometryCollection(t),si.overlayOp(this,t,ii.INTERSECTION)},covers:function(t){return rs.covers(this,t)},coveredBy:function(t){return rs.coveredBy(this,t)},touches:function(t){return rs.touches(this,t)},intersects:function(t){return rs.intersects(this,t)},within:function(t){return rs.within(this,t)},overlaps:function(t){return rs.overlaps(this,t)},disjoint:function(t){return rs.disjoint(this,t)},crosses:function(t){return rs.crosses(this,t)},buffer:function(){if(1===arguments.length){var t=arguments[0];return dr.bufferOp(this,t)}if(2===arguments.length){var e=arguments[0],n=arguments[1];return dr.bufferOp(this,e,n)}if(3===arguments.length){var i=arguments[0],r=arguments[1],s=arguments[2];return dr.bufferOp(this,i,r,s)}},convexHull:function(){return new me(this).getConvexHull()},relate:function(){for(var t=arguments.length,e=Array(t),n=0;n<t;n++)e[n]=arguments[n];return rs.relate.apply(rs,[this].concat(e))},getCentroid:function(){if(this.isEmpty())return this.factory.createPoint();var t=ge.getCentroid(this);return this.createPointFromInternalCoord(t,this)},getInteriorPoint:function(){if(this.isEmpty())return this.factory.createPoint();var t=null,e=this.getDimension();if(0===e){var n=new li(this);t=n.getInteriorPoint()}else if(1===e){var n=new ui(this);t=n.getInteriorPoint()}else{var n=new oi(this);t=n.getInteriorPoint()}return this.createPointFromInternalCoord(t,this)},symDifference:function(t){if(this.isEmpty()||t.isEmpty()){if(this.isEmpty()&&t.isEmpty())return ii.createEmptyResult(ii.SYMDIFFERENCE,this,t,this.factory);if(this.isEmpty())return t.copy();if(t.isEmpty())return this.copy()}return this.checkNotGeometryCollection(this),this.checkNotGeometryCollection(t),si.overlayOp(this,t,ii.SYMDIFFERENCE)},createPointFromInternalCoord:function(t,e){return e.getPrecisionModel().makePrecise(t),e.getFactory().createPoint(t)},toText:function(){var t=new se;return t.write(this)},toString:function(){this.toText()},contains:function(t){return rs.contains(this,t)},difference:function(t){return this.isEmpty()?ii.createEmptyResult(ii.DIFFERENCE,this,t,this.factory):t.isEmpty()?this.copy():(this.checkNotGeometryCollection(this),this.checkNotGeometryCollection(t),si.overlayOp(this,t,ii.DIFFERENCE))},isSimple:function(){var t=new Wi(this);return t.isSimple()},isWithinDistance:function(t,e){var n=this.getEnvelopeInternal().distance(t.getEnvelopeInternal());return!(n>e)&&xr.isWithinDistance(this,t,e)},distance:function(t){return xr.distance(this,t)},isEquivalentClass:function(t){return this.getClass()===t.getClass()}});var Go="1.3.0 (6e65adb)";t.version=Go,t.algorithm=co,t.densify=fo,t.dissolve=go,t.geom=lo,t.geomgraph=po,t.index=yo,t.io=No,t.noding=Co,t.operation=_o,t.precision=Mo,t.simplify=Do,t.triangulate=Fo,Object.defineProperty(t,"__esModule",{value:!0})});
 
-},{}],68:[function(require,module,exports){
+},{}],67:[function(require,module,exports){
 'use strict'
 
 module.exports = monotoneConvexHull2D
@@ -7261,7 +7141,632 @@ function monotoneConvexHull2D(points) {
   //Return result
   return result
 }
-},{"robust-orientation":69}],69:[function(require,module,exports){
+},{"robust-orientation":70}],68:[function(require,module,exports){
+'use strict';
+
+module.exports = partialSort;
+
+// Floyd-Rivest selection algorithm:
+// Rearrange items so that all items in the [left, k] range are smaller than all items in (k, right];
+// The k-th element will have the (k - left + 1)th smallest value in [left, right]
+
+function partialSort(arr, k, left, right, compare) {
+    left = left || 0;
+    right = right || (arr.length - 1);
+    compare = compare || defaultCompare;
+
+    while (right > left) {
+        if (right - left > 600) {
+            var n = right - left + 1;
+            var m = k - left + 1;
+            var z = Math.log(n);
+            var s = 0.5 * Math.exp(2 * z / 3);
+            var sd = 0.5 * Math.sqrt(z * s * (n - s) / n) * (m - n / 2 < 0 ? -1 : 1);
+            var newLeft = Math.max(left, Math.floor(k - m * s / n + sd));
+            var newRight = Math.min(right, Math.floor(k + (n - m) * s / n + sd));
+            partialSort(arr, k, newLeft, newRight, compare);
+        }
+
+        var t = arr[k];
+        var i = left;
+        var j = right;
+
+        swap(arr, left, k);
+        if (compare(arr[right], t) > 0) swap(arr, left, right);
+
+        while (i < j) {
+            swap(arr, i, j);
+            i++;
+            j--;
+            while (compare(arr[i], t) < 0) i++;
+            while (compare(arr[j], t) > 0) j--;
+        }
+
+        if (compare(arr[left], t) === 0) swap(arr, left, j);
+        else {
+            j++;
+            swap(arr, j, right);
+        }
+
+        if (j <= k) left = j + 1;
+        if (k <= j) right = j - 1;
+    }
+}
+
+function swap(arr, i, j) {
+    var tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+}
+
+function defaultCompare(a, b) {
+    return a < b ? -1 : a > b ? 1 : 0;
+}
+
+},{}],69:[function(require,module,exports){
+'use strict';
+
+module.exports = rbush;
+
+var quickselect = require('quickselect');
+
+function rbush(maxEntries, format) {
+    if (!(this instanceof rbush)) return new rbush(maxEntries, format);
+
+    // max entries in a node is 9 by default; min node fill is 40% for best performance
+    this._maxEntries = Math.max(4, maxEntries || 9);
+    this._minEntries = Math.max(2, Math.ceil(this._maxEntries * 0.4));
+
+    if (format) {
+        this._initFormat(format);
+    }
+
+    this.clear();
+}
+
+rbush.prototype = {
+
+    all: function () {
+        return this._all(this.data, []);
+    },
+
+    search: function (bbox) {
+
+        var node = this.data,
+            result = [],
+            toBBox = this.toBBox;
+
+        if (!intersects(bbox, node)) return result;
+
+        var nodesToSearch = [],
+            i, len, child, childBBox;
+
+        while (node) {
+            for (i = 0, len = node.children.length; i < len; i++) {
+
+                child = node.children[i];
+                childBBox = node.leaf ? toBBox(child) : child;
+
+                if (intersects(bbox, childBBox)) {
+                    if (node.leaf) result.push(child);
+                    else if (contains(bbox, childBBox)) this._all(child, result);
+                    else nodesToSearch.push(child);
+                }
+            }
+            node = nodesToSearch.pop();
+        }
+
+        return result;
+    },
+
+    collides: function (bbox) {
+
+        var node = this.data,
+            toBBox = this.toBBox;
+
+        if (!intersects(bbox, node)) return false;
+
+        var nodesToSearch = [],
+            i, len, child, childBBox;
+
+        while (node) {
+            for (i = 0, len = node.children.length; i < len; i++) {
+
+                child = node.children[i];
+                childBBox = node.leaf ? toBBox(child) : child;
+
+                if (intersects(bbox, childBBox)) {
+                    if (node.leaf || contains(bbox, childBBox)) return true;
+                    nodesToSearch.push(child);
+                }
+            }
+            node = nodesToSearch.pop();
+        }
+
+        return false;
+    },
+
+    load: function (data) {
+        if (!(data && data.length)) return this;
+
+        if (data.length < this._minEntries) {
+            for (var i = 0, len = data.length; i < len; i++) {
+                this.insert(data[i]);
+            }
+            return this;
+        }
+
+        // recursively build the tree with the given data from stratch using OMT algorithm
+        var node = this._build(data.slice(), 0, data.length - 1, 0);
+
+        if (!this.data.children.length) {
+            // save as is if tree is empty
+            this.data = node;
+
+        } else if (this.data.height === node.height) {
+            // split root if trees have the same height
+            this._splitRoot(this.data, node);
+
+        } else {
+            if (this.data.height < node.height) {
+                // swap trees if inserted one is bigger
+                var tmpNode = this.data;
+                this.data = node;
+                node = tmpNode;
+            }
+
+            // insert the small tree into the large tree at appropriate level
+            this._insert(node, this.data.height - node.height - 1, true);
+        }
+
+        return this;
+    },
+
+    insert: function (item) {
+        if (item) this._insert(item, this.data.height - 1);
+        return this;
+    },
+
+    clear: function () {
+        this.data = createNode([]);
+        return this;
+    },
+
+    remove: function (item, equalsFn) {
+        if (!item) return this;
+
+        var node = this.data,
+            bbox = this.toBBox(item),
+            path = [],
+            indexes = [],
+            i, parent, index, goingUp;
+
+        // depth-first iterative tree traversal
+        while (node || path.length) {
+
+            if (!node) { // go up
+                node = path.pop();
+                parent = path[path.length - 1];
+                i = indexes.pop();
+                goingUp = true;
+            }
+
+            if (node.leaf) { // check current node
+                index = findItem(item, node.children, equalsFn);
+
+                if (index !== -1) {
+                    // item found, remove the item and condense tree upwards
+                    node.children.splice(index, 1);
+                    path.push(node);
+                    this._condense(path);
+                    return this;
+                }
+            }
+
+            if (!goingUp && !node.leaf && contains(node, bbox)) { // go down
+                path.push(node);
+                indexes.push(i);
+                i = 0;
+                parent = node;
+                node = node.children[0];
+
+            } else if (parent) { // go right
+                i++;
+                node = parent.children[i];
+                goingUp = false;
+
+            } else node = null; // nothing found
+        }
+
+        return this;
+    },
+
+    toBBox: function (item) { return item; },
+
+    compareMinX: compareNodeMinX,
+    compareMinY: compareNodeMinY,
+
+    toJSON: function () { return this.data; },
+
+    fromJSON: function (data) {
+        this.data = data;
+        return this;
+    },
+
+    _all: function (node, result) {
+        var nodesToSearch = [];
+        while (node) {
+            if (node.leaf) result.push.apply(result, node.children);
+            else nodesToSearch.push.apply(nodesToSearch, node.children);
+
+            node = nodesToSearch.pop();
+        }
+        return result;
+    },
+
+    _build: function (items, left, right, height) {
+
+        var N = right - left + 1,
+            M = this._maxEntries,
+            node;
+
+        if (N <= M) {
+            // reached leaf level; return leaf
+            node = createNode(items.slice(left, right + 1));
+            calcBBox(node, this.toBBox);
+            return node;
+        }
+
+        if (!height) {
+            // target height of the bulk-loaded tree
+            height = Math.ceil(Math.log(N) / Math.log(M));
+
+            // target number of root entries to maximize storage utilization
+            M = Math.ceil(N / Math.pow(M, height - 1));
+        }
+
+        node = createNode([]);
+        node.leaf = false;
+        node.height = height;
+
+        // split the items into M mostly square tiles
+
+        var N2 = Math.ceil(N / M),
+            N1 = N2 * Math.ceil(Math.sqrt(M)),
+            i, j, right2, right3;
+
+        multiSelect(items, left, right, N1, this.compareMinX);
+
+        for (i = left; i <= right; i += N1) {
+
+            right2 = Math.min(i + N1 - 1, right);
+
+            multiSelect(items, i, right2, N2, this.compareMinY);
+
+            for (j = i; j <= right2; j += N2) {
+
+                right3 = Math.min(j + N2 - 1, right2);
+
+                // pack each entry recursively
+                node.children.push(this._build(items, j, right3, height - 1));
+            }
+        }
+
+        calcBBox(node, this.toBBox);
+
+        return node;
+    },
+
+    _chooseSubtree: function (bbox, node, level, path) {
+
+        var i, len, child, targetNode, area, enlargement, minArea, minEnlargement;
+
+        while (true) {
+            path.push(node);
+
+            if (node.leaf || path.length - 1 === level) break;
+
+            minArea = minEnlargement = Infinity;
+
+            for (i = 0, len = node.children.length; i < len; i++) {
+                child = node.children[i];
+                area = bboxArea(child);
+                enlargement = enlargedArea(bbox, child) - area;
+
+                // choose entry with the least area enlargement
+                if (enlargement < minEnlargement) {
+                    minEnlargement = enlargement;
+                    minArea = area < minArea ? area : minArea;
+                    targetNode = child;
+
+                } else if (enlargement === minEnlargement) {
+                    // otherwise choose one with the smallest area
+                    if (area < minArea) {
+                        minArea = area;
+                        targetNode = child;
+                    }
+                }
+            }
+
+            node = targetNode || node.children[0];
+        }
+
+        return node;
+    },
+
+    _insert: function (item, level, isNode) {
+
+        var toBBox = this.toBBox,
+            bbox = isNode ? item : toBBox(item),
+            insertPath = [];
+
+        // find the best node for accommodating the item, saving all nodes along the path too
+        var node = this._chooseSubtree(bbox, this.data, level, insertPath);
+
+        // put the item into the node
+        node.children.push(item);
+        extend(node, bbox);
+
+        // split on node overflow; propagate upwards if necessary
+        while (level >= 0) {
+            if (insertPath[level].children.length > this._maxEntries) {
+                this._split(insertPath, level);
+                level--;
+            } else break;
+        }
+
+        // adjust bboxes along the insertion path
+        this._adjustParentBBoxes(bbox, insertPath, level);
+    },
+
+    // split overflowed node into two
+    _split: function (insertPath, level) {
+
+        var node = insertPath[level],
+            M = node.children.length,
+            m = this._minEntries;
+
+        this._chooseSplitAxis(node, m, M);
+
+        var splitIndex = this._chooseSplitIndex(node, m, M);
+
+        var newNode = createNode(node.children.splice(splitIndex, node.children.length - splitIndex));
+        newNode.height = node.height;
+        newNode.leaf = node.leaf;
+
+        calcBBox(node, this.toBBox);
+        calcBBox(newNode, this.toBBox);
+
+        if (level) insertPath[level - 1].children.push(newNode);
+        else this._splitRoot(node, newNode);
+    },
+
+    _splitRoot: function (node, newNode) {
+        // split root node
+        this.data = createNode([node, newNode]);
+        this.data.height = node.height + 1;
+        this.data.leaf = false;
+        calcBBox(this.data, this.toBBox);
+    },
+
+    _chooseSplitIndex: function (node, m, M) {
+
+        var i, bbox1, bbox2, overlap, area, minOverlap, minArea, index;
+
+        minOverlap = minArea = Infinity;
+
+        for (i = m; i <= M - m; i++) {
+            bbox1 = distBBox(node, 0, i, this.toBBox);
+            bbox2 = distBBox(node, i, M, this.toBBox);
+
+            overlap = intersectionArea(bbox1, bbox2);
+            area = bboxArea(bbox1) + bboxArea(bbox2);
+
+            // choose distribution with minimum overlap
+            if (overlap < minOverlap) {
+                minOverlap = overlap;
+                index = i;
+
+                minArea = area < minArea ? area : minArea;
+
+            } else if (overlap === minOverlap) {
+                // otherwise choose distribution with minimum area
+                if (area < minArea) {
+                    minArea = area;
+                    index = i;
+                }
+            }
+        }
+
+        return index;
+    },
+
+    // sorts node children by the best axis for split
+    _chooseSplitAxis: function (node, m, M) {
+
+        var compareMinX = node.leaf ? this.compareMinX : compareNodeMinX,
+            compareMinY = node.leaf ? this.compareMinY : compareNodeMinY,
+            xMargin = this._allDistMargin(node, m, M, compareMinX),
+            yMargin = this._allDistMargin(node, m, M, compareMinY);
+
+        // if total distributions margin value is minimal for x, sort by minX,
+        // otherwise it's already sorted by minY
+        if (xMargin < yMargin) node.children.sort(compareMinX);
+    },
+
+    // total margin of all possible split distributions where each node is at least m full
+    _allDistMargin: function (node, m, M, compare) {
+
+        node.children.sort(compare);
+
+        var toBBox = this.toBBox,
+            leftBBox = distBBox(node, 0, m, toBBox),
+            rightBBox = distBBox(node, M - m, M, toBBox),
+            margin = bboxMargin(leftBBox) + bboxMargin(rightBBox),
+            i, child;
+
+        for (i = m; i < M - m; i++) {
+            child = node.children[i];
+            extend(leftBBox, node.leaf ? toBBox(child) : child);
+            margin += bboxMargin(leftBBox);
+        }
+
+        for (i = M - m - 1; i >= m; i--) {
+            child = node.children[i];
+            extend(rightBBox, node.leaf ? toBBox(child) : child);
+            margin += bboxMargin(rightBBox);
+        }
+
+        return margin;
+    },
+
+    _adjustParentBBoxes: function (bbox, path, level) {
+        // adjust bboxes along the given tree path
+        for (var i = level; i >= 0; i--) {
+            extend(path[i], bbox);
+        }
+    },
+
+    _condense: function (path) {
+        // go through the path, removing empty nodes and updating bboxes
+        for (var i = path.length - 1, siblings; i >= 0; i--) {
+            if (path[i].children.length === 0) {
+                if (i > 0) {
+                    siblings = path[i - 1].children;
+                    siblings.splice(siblings.indexOf(path[i]), 1);
+
+                } else this.clear();
+
+            } else calcBBox(path[i], this.toBBox);
+        }
+    },
+
+    _initFormat: function (format) {
+        // data format (minX, minY, maxX, maxY accessors)
+
+        // uses eval-type function compilation instead of just accepting a toBBox function
+        // because the algorithms are very sensitive to sorting functions performance,
+        // so they should be dead simple and without inner calls
+
+        var compareArr = ['return a', ' - b', ';'];
+
+        this.compareMinX = new Function('a', 'b', compareArr.join(format[0]));
+        this.compareMinY = new Function('a', 'b', compareArr.join(format[1]));
+
+        this.toBBox = new Function('a',
+            'return {minX: a' + format[0] +
+            ', minY: a' + format[1] +
+            ', maxX: a' + format[2] +
+            ', maxY: a' + format[3] + '};');
+    }
+};
+
+function findItem(item, items, equalsFn) {
+    if (!equalsFn) return items.indexOf(item);
+
+    for (var i = 0; i < items.length; i++) {
+        if (equalsFn(item, items[i])) return i;
+    }
+    return -1;
+}
+
+// calculate node's bbox from bboxes of its children
+function calcBBox(node, toBBox) {
+    distBBox(node, 0, node.children.length, toBBox, node);
+}
+
+// min bounding rectangle of node children from k to p-1
+function distBBox(node, k, p, toBBox, destNode) {
+    if (!destNode) destNode = createNode(null);
+    destNode.minX = Infinity;
+    destNode.minY = Infinity;
+    destNode.maxX = -Infinity;
+    destNode.maxY = -Infinity;
+
+    for (var i = k, child; i < p; i++) {
+        child = node.children[i];
+        extend(destNode, node.leaf ? toBBox(child) : child);
+    }
+
+    return destNode;
+}
+
+function extend(a, b) {
+    a.minX = Math.min(a.minX, b.minX);
+    a.minY = Math.min(a.minY, b.minY);
+    a.maxX = Math.max(a.maxX, b.maxX);
+    a.maxY = Math.max(a.maxY, b.maxY);
+    return a;
+}
+
+function compareNodeMinX(a, b) { return a.minX - b.minX; }
+function compareNodeMinY(a, b) { return a.minY - b.minY; }
+
+function bboxArea(a)   { return (a.maxX - a.minX) * (a.maxY - a.minY); }
+function bboxMargin(a) { return (a.maxX - a.minX) + (a.maxY - a.minY); }
+
+function enlargedArea(a, b) {
+    return (Math.max(b.maxX, a.maxX) - Math.min(b.minX, a.minX)) *
+           (Math.max(b.maxY, a.maxY) - Math.min(b.minY, a.minY));
+}
+
+function intersectionArea(a, b) {
+    var minX = Math.max(a.minX, b.minX),
+        minY = Math.max(a.minY, b.minY),
+        maxX = Math.min(a.maxX, b.maxX),
+        maxY = Math.min(a.maxY, b.maxY);
+
+    return Math.max(0, maxX - minX) *
+           Math.max(0, maxY - minY);
+}
+
+function contains(a, b) {
+    return a.minX <= b.minX &&
+           a.minY <= b.minY &&
+           b.maxX <= a.maxX &&
+           b.maxY <= a.maxY;
+}
+
+function intersects(a, b) {
+    return b.minX <= a.maxX &&
+           b.minY <= a.maxY &&
+           b.maxX >= a.minX &&
+           b.maxY >= a.minY;
+}
+
+function createNode(children) {
+    return {
+        children: children,
+        height: 1,
+        leaf: true,
+        minX: Infinity,
+        minY: Infinity,
+        maxX: -Infinity,
+        maxY: -Infinity
+    };
+}
+
+// sort an array so that items come in groups of n unsorted items, with groups sorted between each other;
+// combines selection algorithm with binary divide & conquer approach
+
+function multiSelect(arr, left, right, n, compare) {
+    var stack = [left, right],
+        mid;
+
+    while (stack.length) {
+        right = stack.pop();
+        left = stack.pop();
+
+        if (right - left <= n) continue;
+
+        mid = left + Math.ceil((right - left) / n / 2) * n;
+        quickselect(arr, mid, left, right, compare);
+
+        stack.push(left, mid, mid, right);
+    }
+}
+
+},{"quickselect":68}],70:[function(require,module,exports){
 "use strict"
 
 var twoProduct = require("two-product")
@@ -7452,7 +7957,7 @@ function generateOrientationProc() {
 }
 
 generateOrientationProc()
-},{"robust-scale":70,"robust-subtract":71,"robust-sum":72,"two-product":75}],70:[function(require,module,exports){
+},{"robust-scale":71,"robust-subtract":72,"robust-sum":73,"two-product":76}],71:[function(require,module,exports){
 "use strict"
 
 var twoProduct = require("two-product")
@@ -7503,7 +8008,7 @@ function scaleLinearExpansion(e, scale) {
   g.length = count
   return g
 }
-},{"two-product":75,"two-sum":76}],71:[function(require,module,exports){
+},{"two-product":76,"two-sum":77}],72:[function(require,module,exports){
 "use strict"
 
 module.exports = robustSubtract
@@ -7660,7 +8165,7 @@ function robustSubtract(e, f) {
   g.length = count
   return g
 }
-},{}],72:[function(require,module,exports){
+},{}],73:[function(require,module,exports){
 "use strict"
 
 module.exports = linearExpansionSum
@@ -7817,7 +8322,7 @@ function linearExpansionSum(e, f) {
   g.length = count
   return g
 }
-},{}],73:[function(require,module,exports){
+},{}],74:[function(require,module,exports){
 "use strict"; "use restrict";
 
 var bits      = require("bit-twiddle")
@@ -8161,7 +8666,7 @@ function connectedComponents(cells, vertex_count) {
 }
 exports.connectedComponents = connectedComponents
 
-},{"bit-twiddle":59,"union-find":77}],74:[function(require,module,exports){
+},{"bit-twiddle":58,"union-find":78}],75:[function(require,module,exports){
 /*
  (c) 2013, Vladimir Agafonkin
  Simplify.js, a high-performance JS polyline simplification library
@@ -8294,7 +8799,7 @@ else window.simplify = simplify;
 
 })();
 
-},{}],75:[function(require,module,exports){
+},{}],76:[function(require,module,exports){
 "use strict"
 
 module.exports = twoProduct
@@ -8328,7 +8833,7 @@ function twoProduct(a, b, result) {
 
   return [ y, x ]
 }
-},{}],76:[function(require,module,exports){
+},{}],77:[function(require,module,exports){
 "use strict"
 
 module.exports = fastTwoSum
@@ -8346,7 +8851,7 @@ function fastTwoSum(a, b, result) {
 	}
 	return [ar+br, x]
 }
-},{}],77:[function(require,module,exports){
+},{}],78:[function(require,module,exports){
 "use strict"; "use restrict";
 
 module.exports = UnionFind;
@@ -8409,14 +8914,13 @@ proto.link = function(x, y) {
     ++ranks[xr];
   }
 }
-},{}],78:[function(require,module,exports){
+},{}],79:[function(require,module,exports){
 module.exports.RADIUS = 6378137;
 module.exports.FLATTENING = 1/298.257223563;
 module.exports.POLAR_RADIUS = 6356752.3142;
 
-},{}],79:[function(require,module,exports){
+},{}],80:[function(require,module,exports){
 var threebox = require('../Threebox.js');
-var sphericalmercator = require("@mapbox/sphericalmercator");
 var turf = require("@turf/turf");
 
 
@@ -8695,7 +9199,7 @@ AnimationManager.prototype = {
 }
 
 module.exports = exports = AnimationManager;
-},{"../Threebox.js":81,"@mapbox/sphericalmercator":4,"@turf/turf":55}],80:[function(require,module,exports){
+},{"../Threebox.js":82,"@turf/turf":54}],81:[function(require,module,exports){
 var THREE = require("../three64.js");
 var Threebox = require('../Threebox.js');
 var utils = require("../Utils/Utils.js");
@@ -8775,7 +9279,7 @@ CameraSync.prototype = {
 }
 
 module.exports = exports = CameraSync;
-},{"../Threebox.js":81,"../Utils/Utils.js":82,"../constants.js":83,"../three64.js":84}],81:[function(require,module,exports){
+},{"../Threebox.js":82,"../Utils/Utils.js":83,"../constants.js":84,"../three64.js":85}],82:[function(require,module,exports){
 var THREE = require("./three64.js");    // Modified version to use 64-bit double precision floats for matrix math
 var ThreeboxConstants = require("./constants.js");
 var CameraSync = require("./Camera/CameraSync.js");
@@ -8864,7 +9368,19 @@ Threebox.prototype = {
         console.log("WARNING: unproject is not yet implemented");
     },
     unprojectFromWorld: function (pixel) {
-        console.log("WARNING: unproject is not yet implemented");
+
+        var unprojected = [
+            pixel.x / (ThreeboxConstants.MERCATOR_A * ThreeboxConstants.DEG2RAD * ThreeboxConstants.PROJECTION_WORLD_SIZE),
+            pixel.y * 2 / (ThreeboxConstants.DEG2RAD * ThreeboxConstants.PROJECTION_WORLD_SIZE) + ThreeboxConstants.MERCATOR_A * Math.log(Math.tan((Math.PI*0.25)))
+        ];
+
+        var pixelsPerMeter = this.projectedUnitsPerMeter(coords[1]);
+
+        //z dimension
+        var height = pixel.z || 0;
+        unprojected.push( height / pixelsPerMeter );
+
+        return unprojected;
     },
 
     addAtCoordinate: function(obj, lnglat, options) {
@@ -8927,7 +9443,7 @@ Threebox.prototype = {
 module.exports = exports = Threebox;
 
 
-},{"./Animation/AnimationManager.js":79,"./Camera/CameraSync.js":80,"./Utils/Utils.js":82,"./constants.js":83,"./three64.js":84}],82:[function(require,module,exports){
+},{"./Animation/AnimationManager.js":80,"./Camera/CameraSync.js":81,"./Utils/Utils.js":83,"./constants.js":84,"./three64.js":85}],83:[function(require,module,exports){
 var THREE = require("../three64.js");    // Modified version to use 64-bit double precision floats for matrix math
 
 function prettyPrintMatrix(uglymatrix){
@@ -8984,7 +9500,7 @@ module.exports.prettyPrintMatrix = prettyPrintMatrix;
 module.exports.makePerspectiveMatrix = makePerspectiveMatrix;
 module.exports.radify = radify;
 module.exports.degreeify = degreeify;
-},{"../three64.js":84}],83:[function(require,module,exports){
+},{"../three64.js":85}],84:[function(require,module,exports){
 const WORLD_SIZE = 512;
 const MERCATOR_A = 6378137.0;
 
@@ -8997,7 +9513,7 @@ module.exports = exports = {
     EARTH_CIRCUMFERENCE: 40075000, // In meters
 
 }
-},{}],84:[function(require,module,exports){
+},{}],85:[function(require,module,exports){
 (function (global, factory) {
 	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
 	typeof define === 'function' && define.amd ? define(['exports'], factory) :
