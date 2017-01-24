@@ -40,3 +40,10 @@ Move object to a new position and orientation. No animation by default.
 - `options` optional
 	- `speed` speed of travel along this path, in meters per second.
 
+## Building
+
+`npm run build`
+
+or to continually rebuild as you develop:
+
+`watchify main.js -o dist/threebox.js`
