@@ -98,9 +98,7 @@ Threebox.prototype = {
         var height = pixel.z || 0;
         unprojected.push( height / pixelsPerMeter );
 
-        var result = new THREE.Vector3(unprojected[0], unprojected[1], unprojected[2]);
-
-        return result;
+        return unprojected;
     },
 
     addAtCoordinate: function(obj, lnglat, options) {
