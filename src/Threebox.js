@@ -89,10 +89,10 @@ Threebox.prototype = {
 
         var unprojected = [
             pixel.x / (ThreeboxConstants.MERCATOR_A * ThreeboxConstants.DEG2RAD * ThreeboxConstants.PROJECTION_WORLD_SIZE),
-            pixel.y * 2 / (ThreeboxConstants.DEG2RAD * ThreeboxConstants.PROJECTION_WORLD_SIZE) + ThreeboxConstants.MERCATOR_A * Math.log(Math.tan((Math.PI*0.25)))
+            2*(Math.atan(Math.exp(pixel.y/(ThreeboxConstants.PROJECTION_WORLD_SIZE*(-ThreeboxConstants.MERCATOR_A))))-Math.PI/4)/ThreeboxConstants.DEG2RAD
         ];
 
-        var pixelsPerMeter = this.projectedUnitsPerMeter(coords[1]);
+        var pixelsPerMeter = this.projectedUnitsPerMeter(unprojected[1]);
 
         //z dimension
         var height = pixel.z || 0;
