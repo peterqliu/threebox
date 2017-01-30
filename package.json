@@ -18,6 +18,7 @@
   },
   "scripts": {
     "build": "browserify main.js > dist/threebox.js",
+    "dev": "watchify main.js -o dist/threebox.js",
     "test": "browserify tests/threebox-tests.js > tests/threebox-tests-bundle.js; echo 'Open tests/threebox-tests.html to run tests in the browser.'"
   }
 }

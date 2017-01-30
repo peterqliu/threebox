@@ -109,13 +109,21 @@ Threebox.prototype = {
             TODO: detect object type and actually do the meter-offset calculations for meshes
         */
 
+        if (options === undefined) {
+            options = {
+                "scaleToLatitude": true
+            };
+        }
+
         obj.position.copy(this.projectToWorld(lnglat));
 
-        // Re-project mesh coordinates to mercator meters
-        var v;
-        console.time("Project coords");
-        this._scaleVerticesToMeters(lnglat, obj.geometry.vertices);
-        console.timeEnd("Project coords");
+        if(options.scaleToLatitude) {
+            // Re-project mesh coordinates to mercator meters
+            var pixelsPerMeter = this.projectedUnitsPerMeter(lnglat[1]);
+            obj.scale.set(pixelsPerMeter, pixelsPerMeter, pixelsPerMeter);
+        }
+        
+        // this._scaleVerticesToMeters(lnglat, obj.geometry.vertices);
 
         console.log(obj.position);
 
