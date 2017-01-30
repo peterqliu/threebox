@@ -1,21 +1,23 @@
 {
-    "name": "threebox",
-    "version": "0.1.0",
-    "description": "Tools to augment the Mapbox GL JS map rendering library with the power of the Three.js 3D library",
-    "main": "dist/threebox.js",
-    "jsnextmain": "dist/threebox.js",
-    "repository": "peterqliu/threebox",
-    "module": "dist/threebox.js",
-    "author": "@peterqliu and @kronick",
-    "license": "MIT",
-    "bugs": {
-        "url": "https://github.com/peterqliu/threebox/issues"
-    },
-    "dependencies": {
-        "@turf/turf": "*"
-    },
-    "scripts": {
-        "build": "browserify main.js > dist/threebox.js"
-    }
-
+  "name": "threebox",
+  "version": "0.1.0",
+  "description": "Tools to augment the Mapbox GL JS map rendering library with the power of the Three.js 3D library",
+  "main": "dist/threebox.js",
+  "jsnextmain": "dist/threebox.js",
+  "repository": "peterqliu/threebox",
+  "module": "dist/threebox.js",
+  "author": "@peterqliu and @kronick",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/peterqliu/threebox/issues"
+  },
+  "dependencies": {
+    "@turf/turf": "*",
+    "tap-prettify": "0.0.2",
+    "tape": "^4.6.3"
+  },
+  "scripts": {
+    "build": "browserify main.js > dist/threebox.js",
+    "test": "browserify tests/threebox-tests.js > tests/threebox-tests-bundle.js; echo 'Open tests/threebox-tests.html to run tests in the browser.'"
+  }
 }

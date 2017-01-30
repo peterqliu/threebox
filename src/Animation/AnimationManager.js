@@ -1,5 +1,4 @@
 var threebox = require('../Threebox.js');
-var sphericalmercator = require("@mapbox/sphericalmercator");
 var turf = require("@turf/turf");
 
 

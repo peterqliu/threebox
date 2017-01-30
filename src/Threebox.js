@@ -86,7 +86,19 @@ Threebox.prototype = {
         console.log("WARNING: unproject is not yet implemented");
     },
     unprojectFromWorld: function (pixel) {
-        console.log("WARNING: unproject is not yet implemented");
+
+        var unprojected = [
+            pixel.x / (ThreeboxConstants.MERCATOR_A * ThreeboxConstants.DEG2RAD * ThreeboxConstants.PROJECTION_WORLD_SIZE),
+            2*(Math.atan(Math.exp(pixel.y/(ThreeboxConstants.PROJECTION_WORLD_SIZE*(-ThreeboxConstants.MERCATOR_A))))-Math.PI/4)/ThreeboxConstants.DEG2RAD
+        ];
+
+        var pixelsPerMeter = this.projectedUnitsPerMeter(unprojected[1]);
+
+        //z dimension
+        var height = pixel.z || 0;
+        unprojected.push( height / pixelsPerMeter );
+
+        return unprojected;
     },
 
     addAtCoordinate: function(obj, lnglat, options) {
