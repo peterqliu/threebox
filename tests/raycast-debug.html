@@ -25,8 +25,8 @@
     var map = new mapboxgl.Map({
       container: 'map',
       style: 'mapbox://styles/mapbox/streets-v8',
-      center: [-122.4131, 37.7743],
-      zoom: 15.95,
+      center: [-122.8170, 37.7894],
+      zoom: 8.55,
       pitch: 60,
       heading: 41,
       hash: true
@@ -41,13 +41,46 @@
         var greenMaterial = new THREE.MeshPhongMaterial( {color: 0xaaffaa, side: THREE.DoubleSide});
         var redMaterial = new THREE.MeshPhongMaterial( {color: 0xffaaaa, side: THREE.DoubleSide});
         
-        window.plane = new THREE.Mesh(geometry, greenMaterial);
-        threebox.addAtCoordinate(plane, [-122.4131, 37.9743, 25000]);
-        var plane2 = new THREE.Mesh(geometry, redMaterial);
-        threebox.addAtCoordinate(plane2, [-123.4131, 37.7743, 25000]);
+        var cube = new THREE.Mesh(geometry, greenMaterial);
+        threebox.addAtCoordinate(cube, [-122.4131, 37.9743, 100000]);
+        cube.userData.name = "Green cube";
+        var cube2 = new THREE.Mesh(geometry, redMaterial);
+        cube2.userData.name = "Red cube";
+        threebox.addAtCoordinate(cube2, [-123.4131, 37.7743, 25000]);
+
+        map.on('mousemove', function(e){
+            var raycaster = new THREE.Raycaster();
+            var mouse = new THREE.Vector2();
+
+            // scale mouse pixel position to a percentage of the screen's width and height
+            mouse.x = ( e.point.x / threebox.map.transform.width ) * 2 - 1;
+            mouse.y = - ( e.point.y / threebox.map.transform.height ) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, threebox.camera);
+
+            // calculate objects intersecting the picking ray
+            var intersects = raycaster.intersectObjects(threebox.world.children);
+            intersects.forEach(function(i) {
+                if(i.object.userData.name !== undefined) console.log("Mouse over '" + i.object.userData.name + "'");
+                else console.log("Mouse over '" + i.object.userData.uuid     + "'");
+            });
+            
+        });
 
     });
 
+
+
+
+    function prettyPrintMatrix(uglymatrix){
+        for (var s=0;s<4;s++){
+            var quartet=[uglymatrix[s],
+            uglymatrix[s+4],
+            uglymatrix[s+8],
+            uglymatrix[s+12]];
+            console.log(quartet.map(function(num){return num.toFixed(4)}))
+        }
+    }
 
     </script>
 </body>

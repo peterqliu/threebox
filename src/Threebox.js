@@ -139,7 +139,7 @@ Threebox.prototype = {
 
     addGeoreferencedMesh: function(mesh, options) {
         /* Place the mesh on the map, assuming its internal (x,y) coordinates are already in (longitude, latitude) format
-            TODO:
+            TODO: write this
         */
 
     },
@@ -154,11 +154,11 @@ Threebox.prototype = {
         var lights = [];
         lights[ 0 ] = new THREE.PointLight( 0x999999, 1, 0 );
         lights[ 1 ] = new THREE.PointLight( 0x999999, 1, 0 );
-        lights[ 2 ] = new THREE.PointLight( 0x999999, 1, 0 );
+        lights[ 2 ] = new THREE.PointLight( 0x999999, 0.2, 0 );
 
-        lights[ 0 ].position.set( 0, 200, 0 );
-        lights[ 1 ].position.set( 100, 200, 100 );
-        lights[ 2 ].position.set( -100, -200, -100 );
+        lights[ 0 ].position.set( 0, 200, 1000 );
+        lights[ 1 ].position.set( 100, 200, 1000 );
+        lights[ 2 ].position.set( -100, -200, 0 );
 
         //scene.add( lights[ 0 ] );
         this.scene.add( lights[ 1 ] );
