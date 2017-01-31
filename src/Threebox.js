@@ -109,13 +109,21 @@ Threebox.prototype = {
             TODO: detect object type and actually do the meter-offset calculations for meshes
         */
 
+        if (options === undefined) {
+            options = {
+                "scaleToLatitude": true
+            };
+        }
+
         obj.position.copy(this.projectToWorld(lnglat));
 
-        // Re-project mesh coordinates to mercator meters
-        var v;
-        console.time("Project coords");
-        this._scaleVerticesToMeters(lnglat, obj.geometry.vertices);
-        console.timeEnd("Project coords");
+        if(options.scaleToLatitude) {
+            // Re-project mesh coordinates to mercator meters
+            var pixelsPerMeter = this.projectedUnitsPerMeter(lnglat[1]);
+            obj.scale.set(pixelsPerMeter, pixelsPerMeter, pixelsPerMeter);
+        }
+        
+        // this._scaleVerticesToMeters(lnglat, obj.geometry.vertices);
 
         console.log(obj.position);
 
@@ -131,7 +139,7 @@ Threebox.prototype = {
 
     addGeoreferencedMesh: function(mesh, options) {
         /* Place the mesh on the map, assuming its internal (x,y) coordinates are already in (longitude, latitude) format
-            TODO:
+            TODO: write this
         */
 
     },
@@ -146,11 +154,11 @@ Threebox.prototype = {
         var lights = [];
         lights[ 0 ] = new THREE.PointLight( 0x999999, 1, 0 );
         lights[ 1 ] = new THREE.PointLight( 0x999999, 1, 0 );
-        lights[ 2 ] = new THREE.PointLight( 0x999999, 1, 0 );
+        lights[ 2 ] = new THREE.PointLight( 0x999999, 0.2, 0 );
 
-        lights[ 0 ].position.set( 0, 200, 0 );
-        lights[ 1 ].position.set( 100, 200, 100 );
-        lights[ 2 ].position.set( -100, -200, -100 );
+        lights[ 0 ].position.set( 0, 200, 1000 );
+        lights[ 1 ].position.set( 100, 200, 1000 );
+        lights[ 2 ].position.set( -100, -200, 0 );
 
         //scene.add( lights[ 0 ] );
         this.scene.add( lights[ 1 ] );
