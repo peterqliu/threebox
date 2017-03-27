@@ -37,7 +37,7 @@
         window.threebox = new Threebox(map);
         threebox.setupDefaultLights();
 
-        var geometry = new THREE.BoxGeometry(50000, 50000, 50000);
+        var geometry = new THREE.BoxGeometry(10000, 10000, 10000);
         var greenMaterial = new THREE.MeshPhongMaterial( {color: 0xaaffaa, side: THREE.DoubleSide});
         var redMaterial = new THREE.MeshPhongMaterial( {color: 0xffaaaa, side: THREE.DoubleSide});
         
@@ -47,6 +47,12 @@
         var cube2 = new THREE.Mesh(geometry, redMaterial);
         cube2.userData.name = "Red cube";
         threebox.addAtCoordinate(cube2, [-123.4131, 37.7743, 25000]);
+
+        for(var i = 0; i < 1000; i++) {
+            _cube = new THREE.Mesh(geometry, redMaterial);
+            _cube.userData.name = "Red cube #" + i;
+            threebox.addAtCoordinate(_cube, [-123.4131, 37.7743 + i * 0.05, 25000]);
+        }
 
         map.on('mousemove', function(e){
             var raycaster = new THREE.Raycaster();

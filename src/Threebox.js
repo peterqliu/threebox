@@ -3,6 +3,7 @@ var ThreeboxConstants = require("./constants.js");
 var CameraSync = require("./Camera/CameraSync.js");
 var utils = require("./Utils/Utils.js");
 var AnimationManager = require("./Animation/AnimationManager.js");
+var SymbolLayer3D = require("./Layers/SymbolLayer3D.js");
 
 function Threebox(map){
     this.map = map;
@@ -23,6 +24,7 @@ function Threebox(map){
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera( 28, window.innerWidth / window.innerHeight, 0.000001, 5000000000);
+    this.layers = [];
 
     // The CameraSync object will keep the Mapbox and THREE.js camera movements in sync.
     // It requires a world group to scale as we zoom in. Rotation is handled in the camera's
@@ -109,23 +111,19 @@ Threebox.prototype = {
             TODO: detect object type and actually do the meter-offset calculations for meshes
         */
 
-        if (options === undefined) {
-            options = {
-                "scaleToLatitude": true
-            };
-        }
+        if (options === undefined) options = {};
+        if(options.preScale === undefined) options.preScale = 1.0;
+        if(options.scaleToLatitude === undefined) options.scaleToLatitude = true;
 
         obj.position.copy(this.projectToWorld(lnglat));
 
         if(options.scaleToLatitude) {
             // Re-project mesh coordinates to mercator meters
-            var pixelsPerMeter = this.projectedUnitsPerMeter(lnglat[1]);
+            var pixelsPerMeter = this.projectedUnitsPerMeter(lnglat[1]) * options.preScale;
             obj.scale.set(pixelsPerMeter, pixelsPerMeter, pixelsPerMeter);
         }
         
         // this._scaleVerticesToMeters(lnglat, obj.geometry.vertices);
-
-        console.log(obj.position);
 
         obj.coordinates = lnglat;
 
@@ -142,6 +140,11 @@ Threebox.prototype = {
             TODO: write this
         */
 
+    },
+
+    addSymbolLayer: function(options) {
+        const layer = new SymbolLayer3D(this, options);
+        this.layers.push(layer);
     },
 
     remove: function(obj) {
