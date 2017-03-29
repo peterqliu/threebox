@@ -1,7 +1,7 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 Threebox = require("./src/Threebox.js");
 THREE = require("./src/three64.js");
-},{"./src/Threebox.js":82,"./src/three64.js":86}],2:[function(require,module,exports){
+},{"./src/Threebox.js":83,"./src/three64.js":87}],2:[function(require,module,exports){
 var wgs84 = require('wgs84');
 
 module.exports.geometry = geometry;
@@ -8520,7 +8520,7 @@ AnimationManager.prototype = {
 }
 
 module.exports = exports = AnimationManager;
-},{"../Threebox.js":82,"@turf/turf":54}],79:[function(require,module,exports){
+},{"../Threebox.js":83,"@turf/turf":54}],79:[function(require,module,exports){
 var THREE = require("../three64.js");
 var Threebox = require('../Threebox.js');
 var utils = require("../Utils/Utils.js");
@@ -8564,10 +8564,12 @@ CameraSync.prototype = {
         // Add a bit extra to avoid precision problems when a fragment's distance is exactly `furthestDistance`
         const farZ = furthestDistance * 1.01;
 
+
         this.camera.projectionMatrix = utils.makePerspectiveMatrix(fov, this.map.transform.width / this.map.transform.height, 1, farZ);
+        
 
         var cameraWorldMatrix = new THREE.Matrix4();
-        var cameraFlipY = new THREE.Matrix4().makeScale(1,-1,1);
+        var cameraFlipY = new THREE.Matrix4().makeScale(1,-1,1);        
         var cameraTranslateZ = new THREE.Matrix4().makeTranslation(0,0,-cameraToCenterDistance);
         var cameraRotateX = new THREE.Matrix4().makeRotationX(this.map.transform._pitch);
         var cameraRotateZ = new THREE.Matrix4().makeRotationZ(this.map.transform.angle);
@@ -8575,7 +8577,7 @@ CameraSync.prototype = {
         // Unlike the Mapbox GL JS camera, separate camera translation and rotation out into its world matrix
         // If this is applied directly to the projection matrix, it will work OK but break raycasting
         cameraWorldMatrix
-            .multiply(cameraFlipY)
+            //.multiply(cameraFlipY)
             .multiply(cameraTranslateZ)
             .multiply(cameraRotateX)
             .multiply(cameraRotateZ);            
@@ -8594,7 +8596,7 @@ CameraSync.prototype = {
         this.world.matrix
             .premultiply(translateCenter)
             .premultiply(scale)
-            .premultiply(translateMap);
+            .premultiply(translateMap)
 
         // utils.prettyPrintMatrix(this.camera.projectionMatrix.elements);
     }
@@ -8602,12 +8604,13 @@ CameraSync.prototype = {
 }
 
 module.exports = exports = CameraSync;
-},{"../Threebox.js":82,"../Utils/Utils.js":83,"../constants.js":85,"../three64.js":86}],80:[function(require,module,exports){
+},{"../Threebox.js":83,"../Utils/Utils.js":84,"../constants.js":86,"../three64.js":87}],80:[function(require,module,exports){
 const THREE = require("../three64.js");    // Modified version to use 64-bit double precision floats for matrix math
 const ThreeboxConstants = require("../constants.js");
 const utils = require("../Utils/Utils.js");
 const ValueGenerator = require("../Utils/ValueGenerator.js");
 const OBJLoader = require("../Loaders/OBJLoader.js");
+const MTLLoader = require("../Loaders/MTLLoader.js");
 
 console.log(THREE);
 
@@ -8627,120 +8630,757 @@ function SymbolLayer3D(parent, options) {
 
     this.id = options.id;
     this.keyGen = ValueGenerator(options.key);
-    this.sourcePath = options.source;
-    this.modelPathGen = ValueGenerator(options.model);
+    if (typeof options.source === "string")
+        this.sourcePath = options.source;
+    else
+        this.source = options.source;
+
+    this.modelDirectoryGen = ValueGenerator(options.modelDirectory);
+    this.modelNameGen = ValueGenerator(options.modelName);
     this.rotationGen = ValueGenerator(options.rotation);
     this.scaleGen = ValueGenerator(options.scale);
-    this.source = undefined;
     this.models = Object.create(null);
     this.features = Object.create(null);
     this.scaleWithMapProjection = options.scaleWithMapProjection;
 
     this.loaded = false;
 
-    // Load source and models
-    const sourceLoader = new THREE.FileLoader();
+    if(this.sourcePath) {
+        // Load source and models
+        const sourceLoader = new THREE.FileLoader();
 
-    sourceLoader.load(this.sourcePath, data => {
+        sourceLoader.load(this.sourcePath, data => {
 
-        this.source = JSON.parse(data);
-        // TODO: Handle invalid GeoJSON
+            this.source = JSON.parse(data);
+            // TODO: Handle invalid GeoJSON
 
+            this._initialize();
+
+        }, () => (null), error => {
+            return console.error("Could not load SymbolLayer3D source file.")
+        });
+    }
+    else {
+        this._initialize();
+    }
+}
+
+SymbolLayer3D.prototype = {
+    updateSourceData: function(source, absolute) {
+        var oldFeatures = {}
+
+        if (!source.features) return console.error("updateSourceData expects a GeoJSON FeatureCollection with a 'features' property");
+        source.features.forEach((feature, i) => {
+            const key = this.keyGen(feature,i); // TODO: error handling
+            if (key in this.features) {
+                // Update
+                this.features[key].geojson = feature;
+                oldFeatures[key] = feature;
+            }
+            else {
+                // Create
+                const modelDirectory = this.modelDirectoryGen(feature,i);
+                const modelName = this.modelNameGen(feature,i);
+
+                // TODO: Handle loading of new models
+                this.features[key] = {
+                    geojson: feature,
+                    model: modelDirectory + modelName
+                }
+            }
+        });
+
+        this._addOrUpdateFeatures(this.features)
+
+        if(absolute) {
+            // Check for any features that are not have not been updated and remove them from the scene
+            for(key in this.features) {
+                if(!key in oldFeatures) {
+                    this.parent.remove(this.features[key].rawObject);
+                    delete this.features[key];
+                }
+            }
+        }
+
+        this.source = source;
+
+    },
+    _initialize: function() {
         var modelNames = [];
 
         // Determine how to load the models
-        if(!this.modelPathGen)
+        if(!this.modelNameGen)
             return console.error("Invalid model name definition provided to SymbolLayer3D");
+        if(!this.modelDirectoryGen)
+            return console.error("Invalid model directory definition provided to SymbolLayer3D");
 
         // Add features to a map
         this.source.features.forEach((f,i) => {
             const key = this.keyGen(f,i); // TODO: error handling
             if(this.features[key] !== undefined) console.warn("Features with duplicate key: " + key);
+
+            const modelDirectory = this.modelDirectoryGen(f,i);
+            const modelName = this.modelNameGen(f,i);
             this.features[key] = {
                 geojson: f,
-                model: this.modelPathGen(f,i)
+                model: modelDirectory + modelName
             }
 
-            modelNames.push(this.modelPathGen(f,i));
+            modelNames.push({directory: modelDirectory, name: modelName});
         });
 
         // Filter out only unique models
-        modelNames.forEach(m => this.models[m] = { loaded: false });
+        modelNames.forEach(m => this.models[(m.directory + m.name)] = { directory: m.directory, name: m.name, loaded: false });
 
         // And load models asynchronously
         var remaining = Object.keys(this.models).length;
         const modelComplete = (m) => {
-            console.log("Model complete: " + m);
-            if(this.models[m].loaded) this._addFeaturesToScene(m);
+            //if(this.models[m].loaded) 
             if(--remaining === 0) {
                 this.loaded = true;
+                this._addOrUpdateFeatures(this.features);
             }
         }
 
         for (m in this.models) {
-            var loader;
-            const ext = m.substring(m.length-3).toLowerCase();
-            if(ext === 'obj') loader = new OBJLoader();
-            else {
-                console.warn("Not loading model with extension: " + ext);
-                modelComplete(m);
+            // TODO: Support formats other than OBJ/MTL
+            const objLoader = new OBJLoader();
+            const materialLoader = new MTLLoader();
+
+            var loadObject = (materials) => {
+                if(materials) {
+                    materials.preload();
+
+                    for(material in (materials.materials)) {
+                        materials.materials[material].shininess /= 50;  // Shininess exported by Blender is way too high
+                        //materials.materials[material].lights = false;
+                        // materials.materials[material].setValues({lights: false});
+                        // materials.materials[material].setValues({doubleSided: true});
+                    }
+                    
+                    objLoader.setMaterials( materials );
+                }
+                objLoader.setPath(this.models[m].directory);
+                objLoader.load(this.models[m].name + ".obj", obj => {
+                    this.models[m].obj = obj;
+                    this.models[m].isMesh = obj.isMesh;
+                    this.models[m].loaded = true;
+
+                    modelComplete(m);
+                }, () => (null), error => {
+                    console.error("Could not load SymbolLayer3D model file.");    
+                } );
+
             }
 
-            loader.load(m, obj => {
-                console.log(obj);
-                this.models[m].obj = obj;
-                this.models[m].isMesh = obj.isMesh;
-                this.models[m].loaded = true;
-
-                modelComplete(m);
-
-            }, () => (null), error => {
-                console.error("Could not load SymbolLayer3D source file.");
-                modelComplete(m);
-            })
-
+            materialLoader.setPath(this.models[m].directory);
+            materialLoader.load(this.models[m].name + ".mtl", loadObject, () => (null), error => {
+                console.warn("No material file found for SymbolLayer3D model " + m);
+                loadObject();
+            });
         }
-
-    }, () => (null), error => {
-        return console.error("Could not load SymbolLayer3D source file.")
-    });
-}
-
-SymbolLayer3D.prototype = {
-    updateSourceData: function(source, partial) {
-
     },
-    _addFeaturesToScene: function(model) {
-        for( feature in this.features) {
-            var f = this.features[feature];
-            if (f.model !== model) continue;
-            console.log("Adding feature");
-            console.log(f);
-
-            //console.log(this.models[model]);
-            const obj = this.models[model].obj.clone();
-            console.log(obj);
-            // geometry.computeFaceNormals();
-            // geometry.computeVertexNormals();
+    _addOrUpdateFeatures: function(features) {
+        for (key in features) {
+            const f = features[key];
             const position = f.geojson.geometry.coordinates;
-            console.log(position);
-            
             const scale = this.scaleGen(f.geojson);
-            var rotation = this.rotationGen(f.geojson);
-            console.log(rotation);
+            const rotation = this.rotationGen(f.geojson);
+
+            var obj;
+            if (!f.rawObject) {
+                // Need to create a scene graph object and add it to the scene
+                if(f.model && this.models[f.model] && this.models[f.model].obj && this.models[f.model].loaded)
+                    obj = this.models[f.model].obj.clone();
+                else {
+                    console.warn("Model not loaded: " + f.model);
+                    obj = new THREE.Group();    // Temporary placeholder if the model doesn't exist and/or will be loaded later
+                }
+
+                f.rawObject = obj;
+
+                this.parent.addAtCoordinate(obj, position, {scaleToLatitude: this.scaleWithMapProjection, preScale: scale});
+                //this.features[key] = f;
+            }
+            else {
+                obj = f.rawObject;
+                this.parent.moveToCoordinate(obj, position);
+            }
+
             obj.rotation.copy(rotation);
-
-            console.log(obj.rotation);
-
-            // Add the model to the threebox scenegraph at a specific geographic coordinate
-            this.parent.addAtCoordinate(obj, position, {scaleToLatitude: this.scaleWithMapProjection, preScale: scale});
         }
-    }
+    },
+    // _addFeaturesToScene: function(model) {
+    //     for (key in this.features) {
+    //         var f = this.features[key];
+    //         if (f.model !== model) continue;
+    //         console.log("Adding feature");
+    //         console.log(f);
+
+    //         //console.log(this.models[model]);
+    //         const obj = this.models[model].obj.clone();
+    //         // geometry.computeFaceNormals();
+    //         // geometry.computeVertexNormals();
+    //         const position = f.geojson.geometry.coordinates;
+            
+    //         const scale = this.scaleGen(f.geojson);
+    //         var rotation = this.rotationGen(f.geojson);
+    //         obj.rotation.copy(rotation);
+    //         // Add the model to the threebox scenegraph at a specific geographic coordinate
+    //         this.parent.addAtCoordinate(obj, position, {scaleToLatitude: this.scaleWithMapProjection, preScale: scale});
+
+    //         this.features[key].rawObject = obj;
+    //     }
+    // }
 
 }
 
 module.exports = exports = SymbolLayer3D;
-},{"../Loaders/OBJLoader.js":81,"../Utils/Utils.js":83,"../Utils/ValueGenerator.js":84,"../constants.js":85,"../three64.js":86}],81:[function(require,module,exports){
+},{"../Loaders/MTLLoader.js":81,"../Loaders/OBJLoader.js":82,"../Utils/Utils.js":84,"../Utils/ValueGenerator.js":85,"../constants.js":86,"../three64.js":87}],81:[function(require,module,exports){
+/**
+ * Loads a Wavefront .mtl file specifying materials
+ *
+ * @author angelxuanchang
+ */
+
+const THREE = require('../three64.js');
+
+const MTLLoader = function ( manager ) {
+
+    this.manager = ( manager !== undefined ) ? manager : THREE.DefaultLoadingManager;
+
+};
+
+MTLLoader.prototype = {
+
+    constructor: MTLLoader,
+
+    /**
+     * Loads and parses a MTL asset from a URL.
+     *
+     * @param {String} url - URL to the MTL file.
+     * @param {Function} [onLoad] - Callback invoked with the loaded object.
+     * @param {Function} [onProgress] - Callback for download progress.
+     * @param {Function} [onError] - Callback for download errors.
+     *
+     * @see setPath setTexturePath
+     *
+     * @note In order for relative texture references to resolve correctly
+     * you must call setPath and/or setTexturePath explicitly prior to load.
+     */
+    load: function ( url, onLoad, onProgress, onError ) {
+
+        var scope = this;
+
+        var loader = new THREE.FileLoader( this.manager );
+        loader.setPath( this.path );
+        loader.load( url, function ( text ) {
+
+            onLoad( scope.parse( text ) );
+
+        }, onProgress, onError );
+
+    },
+
+    /**
+     * Set base path for resolving references.
+     * If set this path will be prepended to each loaded and found reference.
+     *
+     * @see setTexturePath
+     * @param {String} path
+     *
+     * @example
+     *     mtlLoader.setPath( 'assets/obj/' );
+     *     mtlLoader.load( 'my.mtl', ... );
+     */
+    setPath: function ( path ) {
+
+        this.path = path;
+
+    },
+
+    /**
+     * Set base path for resolving texture references.
+     * If set this path will be prepended found texture reference.
+     * If not set and setPath is, it will be used as texture base path.
+     *
+     * @see setPath
+     * @param {String} path
+     *
+     * @example
+     *     mtlLoader.setPath( 'assets/obj/' );
+     *     mtlLoader.setTexturePath( 'assets/textures/' );
+     *     mtlLoader.load( 'my.mtl', ... );
+     */
+    setTexturePath: function ( path ) {
+
+        this.texturePath = path;
+
+    },
+
+    setBaseUrl: function ( path ) {
+
+        console.warn( 'THREE.MTLLoader: .setBaseUrl() is deprecated. Use .setTexturePath( path ) for texture path or .setPath( path ) for general base path instead.' );
+
+        this.setTexturePath( path );
+
+    },
+
+    setCrossOrigin: function ( value ) {
+
+        this.crossOrigin = value;
+
+    },
+
+    setMaterialOptions: function ( value ) {
+
+        this.materialOptions = value;
+
+    },
+
+    /**
+     * Parses a MTL file.
+     *
+     * @param {String} text - Content of MTL file
+     * @return {THREE.MTLLoader.MaterialCreator}
+     *
+     * @see setPath setTexturePath
+     *
+     * @note In order for relative texture references to resolve correctly
+     * you must call setPath and/or setTexturePath explicitly prior to parse.
+     */
+    parse: function ( text ) {
+
+        var lines = text.split( '\n' );
+        var info = {};
+        var delimiter_pattern = /\s+/;
+        var materialsInfo = {};
+
+        for ( var i = 0; i < lines.length; i ++ ) {
+
+            var line = lines[ i ];
+            line = line.trim();
+
+            if ( line.length === 0 || line.charAt( 0 ) === '#' ) {
+
+                // Blank line or comment ignore
+                continue;
+
+            }
+
+            var pos = line.indexOf( ' ' );
+
+            var key = ( pos >= 0 ) ? line.substring( 0, pos ) : line;
+            key = key.toLowerCase();
+
+            var value = ( pos >= 0 ) ? line.substring( pos + 1 ) : '';
+            value = value.trim();
+
+            if ( key === 'newmtl' ) {
+
+                // New material
+
+                info = { name: value };
+                materialsInfo[ value ] = info;
+
+            } else if ( info ) {
+
+                if ( key === 'ka' || key === 'kd' || key === 'ks' ) {
+
+                    var ss = value.split( delimiter_pattern, 3 );
+                    info[ key ] = [ parseFloat( ss[ 0 ] ), parseFloat( ss[ 1 ] ), parseFloat( ss[ 2 ] ) ];
+
+                } else {
+
+                    info[ key ] = value;
+
+                }
+
+            }
+
+        }
+
+        var materialCreator = new MTLLoader.MaterialCreator( this.texturePath || this.path, this.materialOptions );
+        materialCreator.setCrossOrigin( this.crossOrigin );
+        materialCreator.setManager( this.manager );
+        materialCreator.setMaterials( materialsInfo );
+        return materialCreator;
+
+    }
+
+};
+
+/**
+ * Create a new THREE-MTLLoader.MaterialCreator
+ * @param baseUrl - Url relative to which textures are loaded
+ * @param options - Set of options on how to construct the materials
+ *                  side: Which side to apply the material
+ *                        THREE.FrontSide (default), THREE.BackSide, THREE.DoubleSide
+ *                  wrap: What type of wrapping to apply for textures
+ *                        THREE.RepeatWrapping (default), THREE.ClampToEdgeWrapping, THREE.MirroredRepeatWrapping
+ *                  normalizeRGB: RGBs need to be normalized to 0-1 from 0-255
+ *                                Default: false, assumed to be already normalized
+ *                  ignoreZeroRGBs: Ignore values of RGBs (Ka,Kd,Ks) that are all 0's
+ *                                  Default: false
+ * @constructor
+ */
+
+MTLLoader.MaterialCreator = function ( baseUrl, options ) {
+
+    this.baseUrl = baseUrl || '';
+    this.options = options;
+    this.materialsInfo = {};
+    this.materials = {};
+    this.materialsArray = [];
+    this.nameLookup = {};
+
+    this.side = ( this.options && this.options.side ) ? this.options.side : THREE.FrontSide;
+    this.wrap = ( this.options && this.options.wrap ) ? this.options.wrap : THREE.RepeatWrapping;
+
+};
+
+MTLLoader.MaterialCreator.prototype = {
+
+    constructor: MTLLoader.MaterialCreator,
+
+    setCrossOrigin: function ( value ) {
+
+        this.crossOrigin = value;
+
+    },
+
+    setManager: function ( value ) {
+
+        this.manager = value;
+
+    },
+
+    setMaterials: function ( materialsInfo ) {
+
+        this.materialsInfo = this.convert( materialsInfo );
+        this.materials = {};
+        this.materialsArray = [];
+        this.nameLookup = {};
+
+    },
+
+    convert: function ( materialsInfo ) {
+
+        if ( ! this.options ) return materialsInfo;
+
+        var converted = {};
+
+        for ( var mn in materialsInfo ) {
+
+            // Convert materials info into normalized form based on options
+
+            var mat = materialsInfo[ mn ];
+
+            var covmat = {};
+
+            converted[ mn ] = covmat;
+
+            for ( var prop in mat ) {
+
+                var save = true;
+                var value = mat[ prop ];
+                var lprop = prop.toLowerCase();
+
+                switch ( lprop ) {
+
+                    case 'kd':
+                    case 'ka':
+                    case 'ks':
+
+                        // Diffuse color (color under white light) using RGB values
+
+                        if ( this.options && this.options.normalizeRGB ) {
+
+                            value = [ value[ 0 ] / 255, value[ 1 ] / 255, value[ 2 ] / 255 ];
+
+                        }
+
+                        if ( this.options && this.options.ignoreZeroRGBs ) {
+
+                            if ( value[ 0 ] === 0 && value[ 1 ] === 0 && value[ 2 ] === 0 ) {
+
+                                // ignore
+
+                                save = false;
+
+                            }
+
+                        }
+
+                        break;
+
+                    default:
+
+                        break;
+
+                }
+
+                if ( save ) {
+
+                    covmat[ lprop ] = value;
+
+                }
+
+            }
+
+        }
+
+        return converted;
+
+    },
+
+    preload: function () {
+
+        for ( var mn in this.materialsInfo ) {
+
+            this.create( mn );
+
+        }
+
+    },
+
+    getIndex: function ( materialName ) {
+
+        return this.nameLookup[ materialName ];
+
+    },
+
+    getAsArray: function () {
+
+        var index = 0;
+
+        for ( var mn in this.materialsInfo ) {
+
+            this.materialsArray[ index ] = this.create( mn );
+            this.nameLookup[ mn ] = index;
+            index ++;
+
+        }
+
+        return this.materialsArray;
+
+    },
+
+    create: function ( materialName ) {
+
+        if ( this.materials[ materialName ] === undefined ) {
+
+            this.createMaterial_( materialName );
+
+        }
+
+        return this.materials[ materialName ];
+
+    },
+
+    createMaterial_: function ( materialName ) {
+
+        // Create material
+
+        var scope = this;
+        var mat = this.materialsInfo[ materialName ];
+        var params = {
+
+            name: materialName,
+            side: this.side
+
+        };
+
+        function resolveURL( baseUrl, url ) {
+
+            if ( typeof url !== 'string' || url === '' )
+                return '';
+
+            // Absolute URL
+            if ( /^https?:\/\//i.test( url ) ) return url;
+
+            return baseUrl + url;
+
+        }
+
+        function setMapForType( mapType, value ) {
+
+            if ( params[ mapType ] ) return; // Keep the first encountered texture
+
+            var texParams = scope.getTextureParams( value, params );
+            var map = scope.loadTexture( resolveURL( scope.baseUrl, texParams.url ) );
+
+            map.repeat.copy( texParams.scale );
+            map.offset.copy( texParams.offset );
+
+            map.wrapS = scope.wrap;
+            map.wrapT = scope.wrap;
+
+            params[ mapType ] = map;
+
+        }
+
+        for ( var prop in mat ) {
+
+            var value = mat[ prop ];
+
+            if ( value === '' ) continue;
+
+            switch ( prop.toLowerCase() ) {
+
+                // Ns is material specular exponent
+
+                case 'kd':
+
+                    // Diffuse color (color under white light) using RGB values
+
+                    params.color = new THREE.Color().fromArray( value );
+
+                    break;
+
+                case 'ks':
+
+                    // Specular color (color when light is reflected from shiny surface) using RGB values
+                    params.specular = new THREE.Color().fromArray( value );
+
+                    break;
+
+                case 'map_kd':
+
+                    // Diffuse texture map
+
+                    setMapForType( "map", value );
+
+                    break;
+
+                case 'map_ks':
+
+                    // Specular map
+
+                    setMapForType( "specularMap", value );
+
+                    break;
+
+                case 'map_bump':
+                case 'bump':
+
+                    // Bump texture map
+
+                    setMapForType( "bumpMap", value );
+
+                    break;
+
+                case 'ns':
+
+                    // The specular exponent (defines the focus of the specular highlight)
+                    // A high exponent results in a tight, concentrated highlight. Ns values normally range from 0 to 1000.
+                    params.shininess = parseFloat( value );
+
+                    break;
+
+                case 'd':
+
+                    if ( value < 1 ) {
+
+                        params.opacity = value;
+                        params.transparent = true;
+
+                    }
+
+                    break;
+
+                case 'Tr':
+
+                    if ( value > 0 ) {
+
+                        params.opacity = 1 - value;
+                        params.transparent = true;
+
+                    }
+
+                    break;
+
+                default:
+                    break;
+
+            }
+
+        }
+
+        this.materials[ materialName ] = new THREE.MeshPhongMaterial( params );
+        return this.materials[ materialName ];
+
+    },
+
+    getTextureParams: function ( value, matParams ) {
+
+        var texParams = {
+
+            scale: new THREE.Vector2( 1, 1 ),
+            offset: new THREE.Vector2( 0, 0 )
+
+         };
+
+        var items = value.split( /\s+/ );
+        var pos;
+
+        pos = items.indexOf( '-bm' );
+
+        if ( pos >= 0 ) {
+
+            matParams.bumpScale = parseFloat( items[ pos + 1 ] );
+            items.splice( pos, 2 );
+
+        }
+
+        pos = items.indexOf( '-s' );
+
+        if ( pos >= 0 ) {
+
+            texParams.scale.set( parseFloat( items[ pos + 1 ] ), parseFloat( items[ pos + 2 ] ) );
+            items.splice( pos, 4 ); // we expect 3 parameters here!
+
+        }
+
+        pos = items.indexOf( '-o' );
+
+        if ( pos >= 0 ) {
+
+            texParams.offset.set( parseFloat( items[ pos + 1 ] ), parseFloat( items[ pos + 2 ] ) );
+            items.splice( pos, 4 ); // we expect 3 parameters here!
+
+        }
+
+        texParams.url = items.join( ' ' ).trim();
+        return texParams;
+
+    },
+
+    loadTexture: function ( url, mapping, onLoad, onProgress, onError ) {
+
+        var texture;
+        var loader = THREE.Loader.Handlers.get( url );
+        var manager = ( this.manager !== undefined ) ? this.manager : THREE.DefaultLoadingManager;
+
+        if ( loader === null ) {
+
+            loader = new THREE.TextureLoader( manager );
+
+        }
+
+        if ( loader.setCrossOrigin ) loader.setCrossOrigin( this.crossOrigin );
+        texture = loader.load( url, onLoad, onProgress, onError );
+
+        if ( mapping !== undefined ) texture.mapping = mapping;
+
+        return texture;
+
+    }
+
+};
+
+module.exports = exports = MTLLoader;
+},{"../three64.js":87}],82:[function(require,module,exports){
 /**
  * @author mrdoob / http://mrdoob.com/
  */
@@ -9432,6 +10072,7 @@ OBJLoader.prototype = {
 
                         var materialLine = new THREE.LineBasicMaterial();
                         materialLine.copy( material );
+                        materialLine.lights = false;
                         material = materialLine;
 
                     }
@@ -9487,7 +10128,7 @@ OBJLoader.prototype = {
 };
 
 module.exports = exports = OBJLoader;
-},{"../three64.js":86}],82:[function(require,module,exports){
+},{"../three64.js":87}],83:[function(require,module,exports){
 var THREE = require("./three64.js");    // Modified version to use 64-bit double precision floats for matrix math
 var ThreeboxConstants = require("./constants.js");
 var CameraSync = require("./Camera/CameraSync.js");
@@ -9507,6 +10148,7 @@ function Threebox(map){
     this.renderer.domElement.style["position"] = "relative";
     this.renderer.domElement.style["pointer-events"] = "none";
     this.renderer.domElement.style["z-index"] = 1000;
+    this.renderer.domElement.style["transform"] = "scale(1,-1)";
 
     var _this = this;
     this.map.on("resize", function() { _this.renderer.setSize(_this.map.transform.width, _this.map.transform.height); } );
@@ -9624,6 +10266,10 @@ Threebox.prototype = {
 
         return obj;
     },
+    moveToCoordinate: function(obj, lnglat) {
+        obj.position.copy(this.projectToWorld(lnglat));
+        return obj;
+    },
 
     addGeoreferencedMesh: function(mesh, options) {
         /* Place the mesh on the map, assuming its internal (x,y) coordinates are already in (longitude, latitude) format
@@ -9635,6 +10281,14 @@ Threebox.prototype = {
     addSymbolLayer: function(options) {
         const layer = new SymbolLayer3D(this, options);
         this.layers.push(layer);
+
+        return layer;
+    },
+
+    getDataLayer: function(id) {
+        for(var i = 0; i < this.layers.length; i++) {
+            if (this.layer.id === id) return layer;
+        }
     },
 
     remove: function(obj) {
@@ -9642,27 +10296,34 @@ Threebox.prototype = {
     },
 
     setupDefaultLights: function() {
-        this.scene.add( new THREE.AmbientLight( 0x999999 ) );
+        this.scene.add( new THREE.AmbientLight( 0xCCCCCC ) );
 
-        var lights = [];
-        lights[ 0 ] = new THREE.PointLight( 0x999999, 1, 0 );
-        lights[ 1 ] = new THREE.PointLight( 0x999999, 1, 0 );
-        lights[ 2 ] = new THREE.PointLight( 0x999999, 0.2, 0 );
+        var sunlight = new THREE.DirectionalLight(0xffffff, 0.5);
+        sunlight.position.set(0,800,1000);
+        sunlight.matrixWorldNeedsUpdate = true;
+        this.world.add(sunlight);
+        //this.world.add(sunlight.target);
 
-        lights[ 0 ].position.set( 0, 200, 1000 );
-        lights[ 1 ].position.set( 100, 200, 1000 );
-        lights[ 2 ].position.set( -100, -200, 0 );
+        // var lights = [];
+        // lights[ 0 ] = new THREE.PointLight( 0x999999, 1, 0 );
+        // lights[ 1 ] = new THREE.PointLight( 0x999999, 1, 0 );
+        // lights[ 2 ] = new THREE.PointLight( 0x999999, 0.2, 0 );
 
-        //scene.add( lights[ 0 ] );
-        this.scene.add( lights[ 1 ] );
-        this.scene.add( lights[ 2 ] );
+        // lights[ 0 ].position.set( 0, 200, 1000 );
+        // lights[ 1 ].position.set( 100, 200, 1000 );
+        // lights[ 2 ].position.set( -100, -200, 0 );
+
+        // //scene.add( lights[ 0 ] );
+        // this.scene.add( lights[ 1 ] );
+        // this.scene.add( lights[ 2 ] );
+        
     }
 }
 
 module.exports = exports = Threebox;
 
 
-},{"./Animation/AnimationManager.js":78,"./Camera/CameraSync.js":79,"./Layers/SymbolLayer3D.js":80,"./Utils/Utils.js":83,"./constants.js":85,"./three64.js":86}],83:[function(require,module,exports){
+},{"./Animation/AnimationManager.js":78,"./Camera/CameraSync.js":79,"./Layers/SymbolLayer3D.js":80,"./Utils/Utils.js":84,"./constants.js":86,"./three64.js":87}],84:[function(require,module,exports){
 var THREE = require("../three64.js");    // Modified version to use 64-bit double precision floats for matrix math
 
 function prettyPrintMatrix(uglymatrix){
@@ -9719,7 +10380,7 @@ module.exports.prettyPrintMatrix = prettyPrintMatrix;
 module.exports.makePerspectiveMatrix = makePerspectiveMatrix;
 module.exports.radify = radify;
 module.exports.degreeify = degreeify;
-},{"../three64.js":86}],84:[function(require,module,exports){
+},{"../three64.js":87}],85:[function(require,module,exports){
 const ValueGenerator = function(input) {
     if(typeof input === 'object' && input.property !== undefined)    // Value name comes from a property in each item
         return (f => f.properties[input.property]);
@@ -9731,7 +10392,7 @@ const ValueGenerator = function(input) {
 }
 
 module.exports = exports = ValueGenerator;
-},{}],85:[function(require,module,exports){
+},{}],86:[function(require,module,exports){
 const WORLD_SIZE = 512;
 const MERCATOR_A = 6378137.0;
 
@@ -9744,7 +10405,7 @@ module.exports = exports = {
     EARTH_CIRCUMFERENCE: 40075000, // In meters
 
 }
-},{}],86:[function(require,module,exports){
+},{}],87:[function(require,module,exports){
 (function (global, factory) {
 	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
 	typeof define === 'function' && define.amd ? define(['exports'], factory) :

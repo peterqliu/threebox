@@ -17,6 +17,7 @@ function Threebox(map){
     this.renderer.domElement.style["position"] = "relative";
     this.renderer.domElement.style["pointer-events"] = "none";
     this.renderer.domElement.style["z-index"] = 1000;
+    this.renderer.domElement.style["transform"] = "scale(1,-1)";
 
     var _this = this;
     this.map.on("resize", function() { _this.renderer.setSize(_this.map.transform.width, _this.map.transform.height); } );
@@ -134,6 +135,10 @@ Threebox.prototype = {
 
         return obj;
     },
+    moveToCoordinate: function(obj, lnglat) {
+        obj.position.copy(this.projectToWorld(lnglat));
+        return obj;
+    },
 
     addGeoreferencedMesh: function(mesh, options) {
         /* Place the mesh on the map, assuming its internal (x,y) coordinates are already in (longitude, latitude) format
@@ -145,6 +150,14 @@ Threebox.prototype = {
     addSymbolLayer: function(options) {
         const layer = new SymbolLayer3D(this, options);
         this.layers.push(layer);
+
+        return layer;
+    },
+
+    getDataLayer: function(id) {
+        for(var i = 0; i < this.layers.length; i++) {
+            if (this.layer.id === id) return layer;
+        }
     },
 
     remove: function(obj) {
@@ -152,20 +165,27 @@ Threebox.prototype = {
     },
 
     setupDefaultLights: function() {
-        this.scene.add( new THREE.AmbientLight( 0x999999 ) );
+        this.scene.add( new THREE.AmbientLight( 0xCCCCCC ) );
 
-        var lights = [];
-        lights[ 0 ] = new THREE.PointLight( 0x999999, 1, 0 );
-        lights[ 1 ] = new THREE.PointLight( 0x999999, 1, 0 );
-        lights[ 2 ] = new THREE.PointLight( 0x999999, 0.2, 0 );
+        var sunlight = new THREE.DirectionalLight(0xffffff, 0.5);
+        sunlight.position.set(0,800,1000);
+        sunlight.matrixWorldNeedsUpdate = true;
+        this.world.add(sunlight);
+        //this.world.add(sunlight.target);
 
-        lights[ 0 ].position.set( 0, 200, 1000 );
-        lights[ 1 ].position.set( 100, 200, 1000 );
-        lights[ 2 ].position.set( -100, -200, 0 );
+        // var lights = [];
+        // lights[ 0 ] = new THREE.PointLight( 0x999999, 1, 0 );
+        // lights[ 1 ] = new THREE.PointLight( 0x999999, 1, 0 );
+        // lights[ 2 ] = new THREE.PointLight( 0x999999, 0.2, 0 );
 
-        //scene.add( lights[ 0 ] );
-        this.scene.add( lights[ 1 ] );
-        this.scene.add( lights[ 2 ] );
+        // lights[ 0 ].position.set( 0, 200, 1000 );
+        // lights[ 1 ].position.set( 100, 200, 1000 );
+        // lights[ 2 ].position.set( -100, -200, 0 );
+
+        // //scene.add( lights[ 0 ] );
+        // this.scene.add( lights[ 1 ] );
+        // this.scene.add( lights[ 2 ] );
+        
     }
 }
 
