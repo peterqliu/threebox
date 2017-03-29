@@ -1,0 +1,139 @@
+<!doctype html>
+<head>
+    <title>SymboLayer3D example</title>
+    <script src="../dist/threebox.js" type="text/javascript"></script>
+    <script src="config.js"></script>
+
+    <script src='https://api.mapbox.com/mapbox-gl-js/v0.29.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v0.29.0/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        body, html { 
+            width: 100%;
+            height: 100%;
+            margin: 0;
+        }
+        #map { 
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id='map' class='map'></div>
+
+    <script>
+    if(!config) console.error("Config not set! Make a copy of 'config_template.js', add in your access token, and save the file as 'config.js'.");
+    
+    mapboxgl.accessToken = config.accessToken;
+    var map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/dark-v9',
+      center: [-122.4131, 37.7743],
+      zoom: 15.95,
+      pitch: 60,
+      heading: 41,
+      hash: true,
+      maxZoom: 24
+    });
+
+    map.on("load", function() {
+        // Initialize threebox
+        window.threebox = new Threebox(map);
+        threebox.setupDefaultLights();
+
+        var source = {
+            type: "FeatureCollection",
+            features: []
+        };
+
+        for (var i = 0; i < 100; i++) {
+            var newFeat = {
+                type: "Feature",
+                properties: {
+                    heading: randomRange(0, 360),
+                    id: i
+                },
+                geometry: {
+                    type: "Point",
+                    coordinates: [randomRange(-122.508544921875, -122.37945556640624), randomRange(37.70229391925025, 37.800289863702076)]
+                }
+            }
+            source.features.push(newFeat);
+        }
+
+        var symbols = threebox.addSymbolLayer({
+            id:             "trucks",
+            source:         source, //"data/points.geojson",
+            modelName:      "Truck",    // will look for an .obj and .mtl file with this name
+            modelDirectory: "models/",          // in this directory
+            rotation:       { generator: feature => (new THREE.Euler(Math.PI / 2, 0, feature.properties['heading'] * Math.PI / 180 + Math.PI / 2, "ZXY")) },
+            rotationTransition: {time: 1000, easing: "linear"},
+            scale:          100,
+            scaleWithMapProjection: true,
+            key:            { property: "id" }
+        });
+
+        var lastT = performance.now();
+        const drive = (t) => {
+            const dT = t - lastT;
+            lastT = t;
+            const fpsFactor = dT / 16.7;
+
+            //console.log("FPS", (1000/dT).toFixed(2));
+            var source = symbols.source;
+            if(symbols.loaded && source) {
+
+                const speed = 0.000005 * fpsFactor;
+                source.features.forEach(f => {
+                    const dX = Math.sin((f.properties.heading + 90) * Math.PI / 180) * speed;
+                    const dY = Math.cos((f.properties.heading + 90) * Math.PI / 180) * speed;
+                    if(f.properties.headingChange === undefined) f.properties.headingChange = 0;
+                    f.properties.headingChange += (Math.random() - 0.5) / 20 * fpsFactor;
+                    f.properties.headingChange = Math.min(f.properties.headingChange, 0.25);
+                    f.properties.headingChange = Math.max(f.properties.headingChange, -0.25);
+                    f.properties.heading += f.properties.headingChange * fpsFactor;
+                    f.geometry.coordinates = [f.geometry.coordinates[0] + dX, f.geometry.coordinates[1] + dY]
+                });
+
+                symbols.updateSourceData(source);
+            }
+
+            window.requestAnimationFrame(drive);
+        }
+        drive();
+
+        // source3D.onEnter(function(feature) {
+
+        // });
+
+        // source3D.onUpdate(function(feature, sceneObject) {
+        //     // if(featureIsSpecialInSomeWay) {
+        //     //     return {rotation: 0}
+        //     // }
+        // });
+
+        // source3D.onExit(function(feature) {
+
+        // });
+
+        // Transitions on:
+        // - Scale xyz
+        // - Translation offset
+        // - Opacity
+        // - Rotate
+        // window.setInteval(function(t) {
+        //     var newData = downloadNewData(url);
+        //     source3D.updateData(newData);    
+        // }, 1000);
+        
+        // source3D.setProperty({
+        //     rotation: { generator: feature => feature.properties['heading'] }
+        // });
+    });
+
+    function randomRange(low, high) {
+        return Math.random() * (high - low) + low;
+    }
+
+    </script>
+</body>

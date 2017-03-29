@@ -41,10 +41,12 @@ CameraSync.prototype = {
         // Add a bit extra to avoid precision problems when a fragment's distance is exactly `furthestDistance`
         const farZ = furthestDistance * 1.01;
 
+
         this.camera.projectionMatrix = utils.makePerspectiveMatrix(fov, this.map.transform.width / this.map.transform.height, 1, farZ);
+        
 
         var cameraWorldMatrix = new THREE.Matrix4();
-        var cameraFlipY = new THREE.Matrix4().makeScale(1,-1,1);
+        var cameraFlipY = new THREE.Matrix4().makeScale(1,-1,1);        
         var cameraTranslateZ = new THREE.Matrix4().makeTranslation(0,0,-cameraToCenterDistance);
         var cameraRotateX = new THREE.Matrix4().makeRotationX(this.map.transform._pitch);
         var cameraRotateZ = new THREE.Matrix4().makeRotationZ(this.map.transform.angle);
@@ -52,7 +54,7 @@ CameraSync.prototype = {
         // Unlike the Mapbox GL JS camera, separate camera translation and rotation out into its world matrix
         // If this is applied directly to the projection matrix, it will work OK but break raycasting
         cameraWorldMatrix
-            .multiply(cameraFlipY)
+            //.multiply(cameraFlipY)
             .multiply(cameraTranslateZ)
             .multiply(cameraRotateX)
             .multiply(cameraRotateZ);            
@@ -71,7 +73,7 @@ CameraSync.prototype = {
         this.world.matrix
             .premultiply(translateCenter)
             .premultiply(scale)
-            .premultiply(translateMap);
+            .premultiply(translateMap)
 
         // utils.prettyPrintMatrix(this.camera.projectionMatrix.elements);
     }

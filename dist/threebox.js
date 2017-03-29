@@ -1,7 +1,7 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 Threebox = require("./src/Threebox.js");
 THREE = require("./src/three64.js");
-},{"./src/Threebox.js":80,"./src/three64.js":83}],2:[function(require,module,exports){
+},{"./src/Threebox.js":83,"./src/three64.js":87}],2:[function(require,module,exports){
 var wgs84 = require('wgs84');
 
 module.exports.geometry = geometry;
@@ -8520,7 +8520,7 @@ AnimationManager.prototype = {
 }
 
 module.exports = exports = AnimationManager;
-},{"../Threebox.js":80,"@turf/turf":54}],79:[function(require,module,exports){
+},{"../Threebox.js":83,"@turf/turf":54}],79:[function(require,module,exports){
 var THREE = require("../three64.js");
 var Threebox = require('../Threebox.js');
 var utils = require("../Utils/Utils.js");
@@ -8564,10 +8564,12 @@ CameraSync.prototype = {
         // Add a bit extra to avoid precision problems when a fragment's distance is exactly `furthestDistance`
         const farZ = furthestDistance * 1.01;
 
+
         this.camera.projectionMatrix = utils.makePerspectiveMatrix(fov, this.map.transform.width / this.map.transform.height, 1, farZ);
+        
 
         var cameraWorldMatrix = new THREE.Matrix4();
-        var cameraFlipY = new THREE.Matrix4().makeScale(1,-1,1);
+        var cameraFlipY = new THREE.Matrix4().makeScale(1,-1,1);        
         var cameraTranslateZ = new THREE.Matrix4().makeTranslation(0,0,-cameraToCenterDistance);
         var cameraRotateX = new THREE.Matrix4().makeRotationX(this.map.transform._pitch);
         var cameraRotateZ = new THREE.Matrix4().makeRotationZ(this.map.transform.angle);
@@ -8575,7 +8577,7 @@ CameraSync.prototype = {
         // Unlike the Mapbox GL JS camera, separate camera translation and rotation out into its world matrix
         // If this is applied directly to the projection matrix, it will work OK but break raycasting
         cameraWorldMatrix
-            .multiply(cameraFlipY)
+            //.multiply(cameraFlipY)
             .multiply(cameraTranslateZ)
             .multiply(cameraRotateX)
             .multiply(cameraRotateZ);            
@@ -8594,7 +8596,7 @@ CameraSync.prototype = {
         this.world.matrix
             .premultiply(translateCenter)
             .premultiply(scale)
-            .premultiply(translateMap);
+            .premultiply(translateMap)
 
         // utils.prettyPrintMatrix(this.camera.projectionMatrix.elements);
     }
@@ -8602,12 +8604,1537 @@ CameraSync.prototype = {
 }
 
 module.exports = exports = CameraSync;
-},{"../Threebox.js":80,"../Utils/Utils.js":81,"../constants.js":82,"../three64.js":83}],80:[function(require,module,exports){
+},{"../Threebox.js":83,"../Utils/Utils.js":84,"../constants.js":86,"../three64.js":87}],80:[function(require,module,exports){
+const THREE = require("../three64.js");    // Modified version to use 64-bit double precision floats for matrix math
+const ThreeboxConstants = require("../constants.js");
+const utils = require("../Utils/Utils.js");
+const ValueGenerator = require("../Utils/ValueGenerator.js");
+const OBJLoader = require("../Loaders/OBJLoader.js");
+const MTLLoader = require("../Loaders/MTLLoader.js");
+
+console.log(THREE);
+
+function SymbolLayer3D(parent, options) {
+    if(options === undefined) return console.error("Invalid options provided to SymbolLayer3D");
+    // TODO: Better error handling here
+
+    if(options.scale === undefined) options.scale = 1.0;
+    if(options.rotation === undefined) options.rotation = 0;
+    if(options.scaleWithMapProjection === undefined) options.scaleWithMapProjection = true;
+    if(options.key === undefined || options.key === '' || (typeof options.key === 'object' && options.key.property === undefined && options.key.generator === undefined)) {
+        options.key = { generator: (v,i) => i };
+        console.warn("Using array index for SymbolLayer3D key property.");
+    }
+
+    this.parent = parent;
+
+    this.id = options.id;
+    this.keyGen = ValueGenerator(options.key);
+    if (typeof options.source === "string")
+        this.sourcePath = options.source;
+    else
+        this.source = options.source;
+
+    this.modelDirectoryGen = ValueGenerator(options.modelDirectory);
+    this.modelNameGen = ValueGenerator(options.modelName);
+    this.rotationGen = ValueGenerator(options.rotation);
+    this.scaleGen = ValueGenerator(options.scale);
+    this.models = Object.create(null);
+    this.features = Object.create(null);
+    this.scaleWithMapProjection = options.scaleWithMapProjection;
+
+    this.loaded = false;
+
+    if(this.sourcePath) {
+        // Load source and models
+        const sourceLoader = new THREE.FileLoader();
+
+        sourceLoader.load(this.sourcePath, data => {
+
+            this.source = JSON.parse(data);
+            // TODO: Handle invalid GeoJSON
+
+            this._initialize();
+
+        }, () => (null), error => {
+            return console.error("Could not load SymbolLayer3D source file.")
+        });
+    }
+    else {
+        this._initialize();
+    }
+}
+
+SymbolLayer3D.prototype = {
+    updateSourceData: function(source, absolute) {
+        var oldFeatures = {}
+
+        if (!source.features) return console.error("updateSourceData expects a GeoJSON FeatureCollection with a 'features' property");
+        source.features.forEach((feature, i) => {
+            const key = this.keyGen(feature,i); // TODO: error handling
+            if (key in this.features) {
+                // Update
+                this.features[key].geojson = feature;
+                oldFeatures[key] = feature;
+            }
+            else {
+                // Create
+                const modelDirectory = this.modelDirectoryGen(feature,i);
+                const modelName = this.modelNameGen(feature,i);
+
+                // TODO: Handle loading of new models
+                this.features[key] = {
+                    geojson: feature,
+                    model: modelDirectory + modelName
+                }
+            }
+        });
+
+        this._addOrUpdateFeatures(this.features)
+
+        if(absolute) {
+            // Check for any features that are not have not been updated and remove them from the scene
+            for(key in this.features) {
+                if(!key in oldFeatures) {
+                    this.parent.remove(this.features[key].rawObject);
+                    delete this.features[key];
+                }
+            }
+        }
+
+        this.source = source;
+
+    },
+    _initialize: function() {
+        var modelNames = [];
+
+        // Determine how to load the models
+        if(!this.modelNameGen)
+            return console.error("Invalid model name definition provided to SymbolLayer3D");
+        if(!this.modelDirectoryGen)
+            return console.error("Invalid model directory definition provided to SymbolLayer3D");
+
+        // Add features to a map
+        this.source.features.forEach((f,i) => {
+            const key = this.keyGen(f,i); // TODO: error handling
+            if(this.features[key] !== undefined) console.warn("Features with duplicate key: " + key);
+
+            const modelDirectory = this.modelDirectoryGen(f,i);
+            const modelName = this.modelNameGen(f,i);
+            this.features[key] = {
+                geojson: f,
+                model: modelDirectory + modelName
+            }
+
+            modelNames.push({directory: modelDirectory, name: modelName});
+        });
+
+        // Filter out only unique models
+        modelNames.forEach(m => this.models[(m.directory + m.name)] = { directory: m.directory, name: m.name, loaded: false });
+
+        // And load models asynchronously
+        var remaining = Object.keys(this.models).length;
+        const modelComplete = (m) => {
+            //if(this.models[m].loaded) 
+            if(--remaining === 0) {
+                this.loaded = true;
+                this._addOrUpdateFeatures(this.features);
+            }
+        }
+
+        for (m in this.models) {
+            // TODO: Support formats other than OBJ/MTL
+            const objLoader = new OBJLoader();
+            const materialLoader = new MTLLoader();
+
+            var loadObject = (materials) => {
+                if(materials) {
+                    materials.preload();
+
+                    for(material in (materials.materials)) {
+                        materials.materials[material].shininess /= 50;  // Shininess exported by Blender is way too high
+                        //materials.materials[material].lights = false;
+                        // materials.materials[material].setValues({lights: false});
+                        // materials.materials[material].setValues({doubleSided: true});
+                    }
+                    
+                    objLoader.setMaterials( materials );
+                }
+                objLoader.setPath(this.models[m].directory);
+                objLoader.load(this.models[m].name + ".obj", obj => {
+                    this.models[m].obj = obj;
+                    this.models[m].isMesh = obj.isMesh;
+                    this.models[m].loaded = true;
+
+                    modelComplete(m);
+                }, () => (null), error => {
+                    console.error("Could not load SymbolLayer3D model file.");    
+                } );
+
+            }
+
+            materialLoader.setPath(this.models[m].directory);
+            materialLoader.load(this.models[m].name + ".mtl", loadObject, () => (null), error => {
+                console.warn("No material file found for SymbolLayer3D model " + m);
+                loadObject();
+            });
+        }
+    },
+    _addOrUpdateFeatures: function(features) {
+        for (key in features) {
+            const f = features[key];
+            const position = f.geojson.geometry.coordinates;
+            const scale = this.scaleGen(f.geojson);
+            const rotation = this.rotationGen(f.geojson);
+
+            var obj;
+            if (!f.rawObject) {
+                // Need to create a scene graph object and add it to the scene
+                if(f.model && this.models[f.model] && this.models[f.model].obj && this.models[f.model].loaded)
+                    obj = this.models[f.model].obj.clone();
+                else {
+                    console.warn("Model not loaded: " + f.model);
+                    obj = new THREE.Group();    // Temporary placeholder if the model doesn't exist and/or will be loaded later
+                }
+
+                f.rawObject = obj;
+
+                this.parent.addAtCoordinate(obj, position, {scaleToLatitude: this.scaleWithMapProjection, preScale: scale});
+                //this.features[key] = f;
+            }
+            else {
+                obj = f.rawObject;
+                this.parent.moveToCoordinate(obj, position);
+            }
+
+            obj.rotation.copy(rotation);
+        }
+    },
+    // _addFeaturesToScene: function(model) {
+    //     for (key in this.features) {
+    //         var f = this.features[key];
+    //         if (f.model !== model) continue;
+    //         console.log("Adding feature");
+    //         console.log(f);
+
+    //         //console.log(this.models[model]);
+    //         const obj = this.models[model].obj.clone();
+    //         // geometry.computeFaceNormals();
+    //         // geometry.computeVertexNormals();
+    //         const position = f.geojson.geometry.coordinates;
+            
+    //         const scale = this.scaleGen(f.geojson);
+    //         var rotation = this.rotationGen(f.geojson);
+    //         obj.rotation.copy(rotation);
+    //         // Add the model to the threebox scenegraph at a specific geographic coordinate
+    //         this.parent.addAtCoordinate(obj, position, {scaleToLatitude: this.scaleWithMapProjection, preScale: scale});
+
+    //         this.features[key].rawObject = obj;
+    //     }
+    // }
+
+}
+
+module.exports = exports = SymbolLayer3D;
+},{"../Loaders/MTLLoader.js":81,"../Loaders/OBJLoader.js":82,"../Utils/Utils.js":84,"../Utils/ValueGenerator.js":85,"../constants.js":86,"../three64.js":87}],81:[function(require,module,exports){
+/**
+ * Loads a Wavefront .mtl file specifying materials
+ *
+ * @author angelxuanchang
+ */
+
+const THREE = require('../three64.js');
+
+const MTLLoader = function ( manager ) {
+
+    this.manager = ( manager !== undefined ) ? manager : THREE.DefaultLoadingManager;
+
+};
+
+MTLLoader.prototype = {
+
+    constructor: MTLLoader,
+
+    /**
+     * Loads and parses a MTL asset from a URL.
+     *
+     * @param {String} url - URL to the MTL file.
+     * @param {Function} [onLoad] - Callback invoked with the loaded object.
+     * @param {Function} [onProgress] - Callback for download progress.
+     * @param {Function} [onError] - Callback for download errors.
+     *
+     * @see setPath setTexturePath
+     *
+     * @note In order for relative texture references to resolve correctly
+     * you must call setPath and/or setTexturePath explicitly prior to load.
+     */
+    load: function ( url, onLoad, onProgress, onError ) {
+
+        var scope = this;
+
+        var loader = new THREE.FileLoader( this.manager );
+        loader.setPath( this.path );
+        loader.load( url, function ( text ) {
+
+            onLoad( scope.parse( text ) );
+
+        }, onProgress, onError );
+
+    },
+
+    /**
+     * Set base path for resolving references.
+     * If set this path will be prepended to each loaded and found reference.
+     *
+     * @see setTexturePath
+     * @param {String} path
+     *
+     * @example
+     *     mtlLoader.setPath( 'assets/obj/' );
+     *     mtlLoader.load( 'my.mtl', ... );
+     */
+    setPath: function ( path ) {
+
+        this.path = path;
+
+    },
+
+    /**
+     * Set base path for resolving texture references.
+     * If set this path will be prepended found texture reference.
+     * If not set and setPath is, it will be used as texture base path.
+     *
+     * @see setPath
+     * @param {String} path
+     *
+     * @example
+     *     mtlLoader.setPath( 'assets/obj/' );
+     *     mtlLoader.setTexturePath( 'assets/textures/' );
+     *     mtlLoader.load( 'my.mtl', ... );
+     */
+    setTexturePath: function ( path ) {
+
+        this.texturePath = path;
+
+    },
+
+    setBaseUrl: function ( path ) {
+
+        console.warn( 'THREE.MTLLoader: .setBaseUrl() is deprecated. Use .setTexturePath( path ) for texture path or .setPath( path ) for general base path instead.' );
+
+        this.setTexturePath( path );
+
+    },
+
+    setCrossOrigin: function ( value ) {
+
+        this.crossOrigin = value;
+
+    },
+
+    setMaterialOptions: function ( value ) {
+
+        this.materialOptions = value;
+
+    },
+
+    /**
+     * Parses a MTL file.
+     *
+     * @param {String} text - Content of MTL file
+     * @return {THREE.MTLLoader.MaterialCreator}
+     *
+     * @see setPath setTexturePath
+     *
+     * @note In order for relative texture references to resolve correctly
+     * you must call setPath and/or setTexturePath explicitly prior to parse.
+     */
+    parse: function ( text ) {
+
+        var lines = text.split( '\n' );
+        var info = {};
+        var delimiter_pattern = /\s+/;
+        var materialsInfo = {};
+
+        for ( var i = 0; i < lines.length; i ++ ) {
+
+            var line = lines[ i ];
+            line = line.trim();
+
+            if ( line.length === 0 || line.charAt( 0 ) === '#' ) {
+
+                // Blank line or comment ignore
+                continue;
+
+            }
+
+            var pos = line.indexOf( ' ' );
+
+            var key = ( pos >= 0 ) ? line.substring( 0, pos ) : line;
+            key = key.toLowerCase();
+
+            var value = ( pos >= 0 ) ? line.substring( pos + 1 ) : '';
+            value = value.trim();
+
+            if ( key === 'newmtl' ) {
+
+                // New material
+
+                info = { name: value };
+                materialsInfo[ value ] = info;
+
+            } else if ( info ) {
+
+                if ( key === 'ka' || key === 'kd' || key === 'ks' ) {
+
+                    var ss = value.split( delimiter_pattern, 3 );
+                    info[ key ] = [ parseFloat( ss[ 0 ] ), parseFloat( ss[ 1 ] ), parseFloat( ss[ 2 ] ) ];
+
+                } else {
+
+                    info[ key ] = value;
+
+                }
+
+            }
+
+        }
+
+        var materialCreator = new MTLLoader.MaterialCreator( this.texturePath || this.path, this.materialOptions );
+        materialCreator.setCrossOrigin( this.crossOrigin );
+        materialCreator.setManager( this.manager );
+        materialCreator.setMaterials( materialsInfo );
+        return materialCreator;
+
+    }
+
+};
+
+/**
+ * Create a new THREE-MTLLoader.MaterialCreator
+ * @param baseUrl - Url relative to which textures are loaded
+ * @param options - Set of options on how to construct the materials
+ *                  side: Which side to apply the material
+ *                        THREE.FrontSide (default), THREE.BackSide, THREE.DoubleSide
+ *                  wrap: What type of wrapping to apply for textures
+ *                        THREE.RepeatWrapping (default), THREE.ClampToEdgeWrapping, THREE.MirroredRepeatWrapping
+ *                  normalizeRGB: RGBs need to be normalized to 0-1 from 0-255
+ *                                Default: false, assumed to be already normalized
+ *                  ignoreZeroRGBs: Ignore values of RGBs (Ka,Kd,Ks) that are all 0's
+ *                                  Default: false
+ * @constructor
+ */
+
+MTLLoader.MaterialCreator = function ( baseUrl, options ) {
+
+    this.baseUrl = baseUrl || '';
+    this.options = options;
+    this.materialsInfo = {};
+    this.materials = {};
+    this.materialsArray = [];
+    this.nameLookup = {};
+
+    this.side = ( this.options && this.options.side ) ? this.options.side : THREE.FrontSide;
+    this.wrap = ( this.options && this.options.wrap ) ? this.options.wrap : THREE.RepeatWrapping;
+
+};
+
+MTLLoader.MaterialCreator.prototype = {
+
+    constructor: MTLLoader.MaterialCreator,
+
+    setCrossOrigin: function ( value ) {
+
+        this.crossOrigin = value;
+
+    },
+
+    setManager: function ( value ) {
+
+        this.manager = value;
+
+    },
+
+    setMaterials: function ( materialsInfo ) {
+
+        this.materialsInfo = this.convert( materialsInfo );
+        this.materials = {};
+        this.materialsArray = [];
+        this.nameLookup = {};
+
+    },
+
+    convert: function ( materialsInfo ) {
+
+        if ( ! this.options ) return materialsInfo;
+
+        var converted = {};
+
+        for ( var mn in materialsInfo ) {
+
+            // Convert materials info into normalized form based on options
+
+            var mat = materialsInfo[ mn ];
+
+            var covmat = {};
+
+            converted[ mn ] = covmat;
+
+            for ( var prop in mat ) {
+
+                var save = true;
+                var value = mat[ prop ];
+                var lprop = prop.toLowerCase();
+
+                switch ( lprop ) {
+
+                    case 'kd':
+                    case 'ka':
+                    case 'ks':
+
+                        // Diffuse color (color under white light) using RGB values
+
+                        if ( this.options && this.options.normalizeRGB ) {
+
+                            value = [ value[ 0 ] / 255, value[ 1 ] / 255, value[ 2 ] / 255 ];
+
+                        }
+
+                        if ( this.options && this.options.ignoreZeroRGBs ) {
+
+                            if ( value[ 0 ] === 0 && value[ 1 ] === 0 && value[ 2 ] === 0 ) {
+
+                                // ignore
+
+                                save = false;
+
+                            }
+
+                        }
+
+                        break;
+
+                    default:
+
+                        break;
+
+                }
+
+                if ( save ) {
+
+                    covmat[ lprop ] = value;
+
+                }
+
+            }
+
+        }
+
+        return converted;
+
+    },
+
+    preload: function () {
+
+        for ( var mn in this.materialsInfo ) {
+
+            this.create( mn );
+
+        }
+
+    },
+
+    getIndex: function ( materialName ) {
+
+        return this.nameLookup[ materialName ];
+
+    },
+
+    getAsArray: function () {
+
+        var index = 0;
+
+        for ( var mn in this.materialsInfo ) {
+
+            this.materialsArray[ index ] = this.create( mn );
+            this.nameLookup[ mn ] = index;
+            index ++;
+
+        }
+
+        return this.materialsArray;
+
+    },
+
+    create: function ( materialName ) {
+
+        if ( this.materials[ materialName ] === undefined ) {
+
+            this.createMaterial_( materialName );
+
+        }
+
+        return this.materials[ materialName ];
+
+    },
+
+    createMaterial_: function ( materialName ) {
+
+        // Create material
+
+        var scope = this;
+        var mat = this.materialsInfo[ materialName ];
+        var params = {
+
+            name: materialName,
+            side: this.side
+
+        };
+
+        function resolveURL( baseUrl, url ) {
+
+            if ( typeof url !== 'string' || url === '' )
+                return '';
+
+            // Absolute URL
+            if ( /^https?:\/\//i.test( url ) ) return url;
+
+            return baseUrl + url;
+
+        }
+
+        function setMapForType( mapType, value ) {
+
+            if ( params[ mapType ] ) return; // Keep the first encountered texture
+
+            var texParams = scope.getTextureParams( value, params );
+            var map = scope.loadTexture( resolveURL( scope.baseUrl, texParams.url ) );
+
+            map.repeat.copy( texParams.scale );
+            map.offset.copy( texParams.offset );
+
+            map.wrapS = scope.wrap;
+            map.wrapT = scope.wrap;
+
+            params[ mapType ] = map;
+
+        }
+
+        for ( var prop in mat ) {
+
+            var value = mat[ prop ];
+
+            if ( value === '' ) continue;
+
+            switch ( prop.toLowerCase() ) {
+
+                // Ns is material specular exponent
+
+                case 'kd':
+
+                    // Diffuse color (color under white light) using RGB values
+
+                    params.color = new THREE.Color().fromArray( value );
+
+                    break;
+
+                case 'ks':
+
+                    // Specular color (color when light is reflected from shiny surface) using RGB values
+                    params.specular = new THREE.Color().fromArray( value );
+
+                    break;
+
+                case 'map_kd':
+
+                    // Diffuse texture map
+
+                    setMapForType( "map", value );
+
+                    break;
+
+                case 'map_ks':
+
+                    // Specular map
+
+                    setMapForType( "specularMap", value );
+
+                    break;
+
+                case 'map_bump':
+                case 'bump':
+
+                    // Bump texture map
+
+                    setMapForType( "bumpMap", value );
+
+                    break;
+
+                case 'ns':
+
+                    // The specular exponent (defines the focus of the specular highlight)
+                    // A high exponent results in a tight, concentrated highlight. Ns values normally range from 0 to 1000.
+                    params.shininess = parseFloat( value );
+
+                    break;
+
+                case 'd':
+
+                    if ( value < 1 ) {
+
+                        params.opacity = value;
+                        params.transparent = true;
+
+                    }
+
+                    break;
+
+                case 'Tr':
+
+                    if ( value > 0 ) {
+
+                        params.opacity = 1 - value;
+                        params.transparent = true;
+
+                    }
+
+                    break;
+
+                default:
+                    break;
+
+            }
+
+        }
+
+        this.materials[ materialName ] = new THREE.MeshPhongMaterial( params );
+        return this.materials[ materialName ];
+
+    },
+
+    getTextureParams: function ( value, matParams ) {
+
+        var texParams = {
+
+            scale: new THREE.Vector2( 1, 1 ),
+            offset: new THREE.Vector2( 0, 0 )
+
+         };
+
+        var items = value.split( /\s+/ );
+        var pos;
+
+        pos = items.indexOf( '-bm' );
+
+        if ( pos >= 0 ) {
+
+            matParams.bumpScale = parseFloat( items[ pos + 1 ] );
+            items.splice( pos, 2 );
+
+        }
+
+        pos = items.indexOf( '-s' );
+
+        if ( pos >= 0 ) {
+
+            texParams.scale.set( parseFloat( items[ pos + 1 ] ), parseFloat( items[ pos + 2 ] ) );
+            items.splice( pos, 4 ); // we expect 3 parameters here!
+
+        }
+
+        pos = items.indexOf( '-o' );
+
+        if ( pos >= 0 ) {
+
+            texParams.offset.set( parseFloat( items[ pos + 1 ] ), parseFloat( items[ pos + 2 ] ) );
+            items.splice( pos, 4 ); // we expect 3 parameters here!
+
+        }
+
+        texParams.url = items.join( ' ' ).trim();
+        return texParams;
+
+    },
+
+    loadTexture: function ( url, mapping, onLoad, onProgress, onError ) {
+
+        var texture;
+        var loader = THREE.Loader.Handlers.get( url );
+        var manager = ( this.manager !== undefined ) ? this.manager : THREE.DefaultLoadingManager;
+
+        if ( loader === null ) {
+
+            loader = new THREE.TextureLoader( manager );
+
+        }
+
+        if ( loader.setCrossOrigin ) loader.setCrossOrigin( this.crossOrigin );
+        texture = loader.load( url, onLoad, onProgress, onError );
+
+        if ( mapping !== undefined ) texture.mapping = mapping;
+
+        return texture;
+
+    }
+
+};
+
+module.exports = exports = MTLLoader;
+},{"../three64.js":87}],82:[function(require,module,exports){
+/**
+ * @author mrdoob / http://mrdoob.com/
+ */
+const THREE = require('../three64.js');
+
+const OBJLoader = function ( manager ) {
+
+    this.manager = ( manager !== undefined ) ? manager : THREE.DefaultLoadingManager;
+
+    this.materials = null;
+
+    this.regexp = {
+        // v float float float
+        vertex_pattern           : /^v\s+([\d|\.|\+|\-|e|E]+)\s+([\d|\.|\+|\-|e|E]+)\s+([\d|\.|\+|\-|e|E]+)/,
+        // vn float float float
+        normal_pattern           : /^vn\s+([\d|\.|\+|\-|e|E]+)\s+([\d|\.|\+|\-|e|E]+)\s+([\d|\.|\+|\-|e|E]+)/,
+        // vt float float
+        uv_pattern               : /^vt\s+([\d|\.|\+|\-|e|E]+)\s+([\d|\.|\+|\-|e|E]+)/,
+        // f vertex vertex vertex
+        face_vertex              : /^f\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)(?:\s+(-?\d+))?/,
+        // f vertex/uv vertex/uv vertex/uv
+        face_vertex_uv           : /^f\s+(-?\d+)\/(-?\d+)\s+(-?\d+)\/(-?\d+)\s+(-?\d+)\/(-?\d+)(?:\s+(-?\d+)\/(-?\d+))?/,
+        // f vertex/uv/normal vertex/uv/normal vertex/uv/normal
+        face_vertex_uv_normal    : /^f\s+(-?\d+)\/(-?\d+)\/(-?\d+)\s+(-?\d+)\/(-?\d+)\/(-?\d+)\s+(-?\d+)\/(-?\d+)\/(-?\d+)(?:\s+(-?\d+)\/(-?\d+)\/(-?\d+))?/,
+        // f vertex//normal vertex//normal vertex//normal
+        face_vertex_normal       : /^f\s+(-?\d+)\/\/(-?\d+)\s+(-?\d+)\/\/(-?\d+)\s+(-?\d+)\/\/(-?\d+)(?:\s+(-?\d+)\/\/(-?\d+))?/,
+        // o object_name | g group_name
+        object_pattern           : /^[og]\s*(.+)?/,
+        // s boolean
+        smoothing_pattern        : /^s\s+(\d+|on|off)/,
+        // mtllib file_reference
+        material_library_pattern : /^mtllib /,
+        // usemtl material_name
+        material_use_pattern     : /^usemtl /
+    };
+
+};
+
+OBJLoader.prototype = {
+
+    constructor: OBJLoader,
+
+    load: function ( url, onLoad, onProgress, onError ) {
+
+        var scope = this;
+
+        var loader = new THREE.FileLoader( scope.manager );
+        loader.setPath( this.path );
+        loader.load( url, function ( text ) {
+
+            onLoad( scope.parse( text ) );
+
+        }, onProgress, onError );
+
+    },
+
+    setPath: function ( value ) {
+
+        this.path = value;
+
+    },
+
+    setMaterials: function ( materials ) {
+
+        this.materials = materials;
+
+    },
+
+    _createParserState : function () {
+
+        var state = {
+            objects  : [],
+            object   : {},
+
+            vertices : [],
+            normals  : [],
+            uvs      : [],
+
+            materialLibraries : [],
+
+            startObject: function ( name, fromDeclaration ) {
+
+                // If the current object (initial from reset) is not from a g/o declaration in the parsed
+                // file. We need to use it for the first parsed g/o to keep things in sync.
+                if ( this.object && this.object.fromDeclaration === false ) {
+
+                    this.object.name = name;
+                    this.object.fromDeclaration = ( fromDeclaration !== false );
+                    return;
+
+                }
+
+                var previousMaterial = ( this.object && typeof this.object.currentMaterial === 'function' ? this.object.currentMaterial() : undefined );
+
+                if ( this.object && typeof this.object._finalize === 'function' ) {
+
+                    this.object._finalize( true );
+
+                }
+
+                this.object = {
+                    name : name || '',
+                    fromDeclaration : ( fromDeclaration !== false ),
+
+                    geometry : {
+                        vertices : [],
+                        normals  : [],
+                        uvs      : []
+                    },
+                    materials : [],
+                    smooth : true,
+
+                    startMaterial : function( name, libraries ) {
+
+                        var previous = this._finalize( false );
+
+                        // New usemtl declaration overwrites an inherited material, except if faces were declared
+                        // after the material, then it must be preserved for proper MultiMaterial continuation.
+                        if ( previous && ( previous.inherited || previous.groupCount <= 0 ) ) {
+
+                            this.materials.splice( previous.index, 1 );
+
+                        }
+
+                        var material = {
+                            index      : this.materials.length,
+                            name       : name || '',
+                            mtllib     : ( Array.isArray( libraries ) && libraries.length > 0 ? libraries[ libraries.length - 1 ] : '' ),
+                            smooth     : ( previous !== undefined ? previous.smooth : this.smooth ),
+                            groupStart : ( previous !== undefined ? previous.groupEnd : 0 ),
+                            groupEnd   : -1,
+                            groupCount : -1,
+                            inherited  : false,
+
+                            clone : function( index ) {
+                                var cloned = {
+                                    index      : ( typeof index === 'number' ? index : this.index ),
+                                    name       : this.name,
+                                    mtllib     : this.mtllib,
+                                    smooth     : this.smooth,
+                                    groupStart : 0,
+                                    groupEnd   : -1,
+                                    groupCount : -1,
+                                    inherited  : false
+                                };
+                                cloned.clone = this.clone.bind(cloned);
+                                return cloned;
+                            }
+                        };
+
+                        this.materials.push( material );
+
+                        return material;
+
+                    },
+
+                    currentMaterial : function() {
+
+                        if ( this.materials.length > 0 ) {
+                            return this.materials[ this.materials.length - 1 ];
+                        }
+
+                        return undefined;
+
+                    },
+
+                    _finalize : function( end ) {
+
+                        var lastMultiMaterial = this.currentMaterial();
+                        if ( lastMultiMaterial && lastMultiMaterial.groupEnd === -1 ) {
+
+                            lastMultiMaterial.groupEnd = this.geometry.vertices.length / 3;
+                            lastMultiMaterial.groupCount = lastMultiMaterial.groupEnd - lastMultiMaterial.groupStart;
+                            lastMultiMaterial.inherited = false;
+
+                        }
+
+                        // Ignore objects tail materials if no face declarations followed them before a new o/g started.
+                        if ( end && this.materials.length > 1 ) {
+
+                            for ( var mi = this.materials.length - 1; mi >= 0; mi-- ) {
+                                if ( this.materials[mi].groupCount <= 0 ) {
+                                    this.materials.splice( mi, 1 );
+                                }
+                            }
+
+                        }
+
+                        // Guarantee at least one empty material, this makes the creation later more straight forward.
+                        if ( end && this.materials.length === 0 ) {
+
+                            this.materials.push({
+                                name   : '',
+                                smooth : this.smooth
+                            });
+
+                        }
+
+                        return lastMultiMaterial;
+
+                    }
+                };
+
+                // Inherit previous objects material.
+                // Spec tells us that a declared material must be set to all objects until a new material is declared.
+                // If a usemtl declaration is encountered while this new object is being parsed, it will
+                // overwrite the inherited material. Exception being that there was already face declarations
+                // to the inherited material, then it will be preserved for proper MultiMaterial continuation.
+
+                if ( previousMaterial && previousMaterial.name && typeof previousMaterial.clone === "function" ) {
+
+                    var declared = previousMaterial.clone( 0 );
+                    declared.inherited = true;
+                    this.object.materials.push( declared );
+
+                }
+
+                this.objects.push( this.object );
+
+            },
+
+            finalize : function() {
+
+                if ( this.object && typeof this.object._finalize === 'function' ) {
+
+                    this.object._finalize( true );
+
+                }
+
+            },
+
+            parseVertexIndex: function ( value, len ) {
+
+                var index = parseInt( value, 10 );
+                return ( index >= 0 ? index - 1 : index + len / 3 ) * 3;
+
+            },
+
+            parseNormalIndex: function ( value, len ) {
+
+                var index = parseInt( value, 10 );
+                return ( index >= 0 ? index - 1 : index + len / 3 ) * 3;
+
+            },
+
+            parseUVIndex: function ( value, len ) {
+
+                var index = parseInt( value, 10 );
+                return ( index >= 0 ? index - 1 : index + len / 2 ) * 2;
+
+            },
+
+            addVertex: function ( a, b, c ) {
+
+                var src = this.vertices;
+                var dst = this.object.geometry.vertices;
+
+                dst.push( src[ a + 0 ] );
+                dst.push( src[ a + 1 ] );
+                dst.push( src[ a + 2 ] );
+                dst.push( src[ b + 0 ] );
+                dst.push( src[ b + 1 ] );
+                dst.push( src[ b + 2 ] );
+                dst.push( src[ c + 0 ] );
+                dst.push( src[ c + 1 ] );
+                dst.push( src[ c + 2 ] );
+
+            },
+
+            addVertexLine: function ( a ) {
+
+                var src = this.vertices;
+                var dst = this.object.geometry.vertices;
+
+                dst.push( src[ a + 0 ] );
+                dst.push( src[ a + 1 ] );
+                dst.push( src[ a + 2 ] );
+
+            },
+
+            addNormal : function ( a, b, c ) {
+
+                var src = this.normals;
+                var dst = this.object.geometry.normals;
+
+                dst.push( src[ a + 0 ] );
+                dst.push( src[ a + 1 ] );
+                dst.push( src[ a + 2 ] );
+                dst.push( src[ b + 0 ] );
+                dst.push( src[ b + 1 ] );
+                dst.push( src[ b + 2 ] );
+                dst.push( src[ c + 0 ] );
+                dst.push( src[ c + 1 ] );
+                dst.push( src[ c + 2 ] );
+
+            },
+
+            addUV: function ( a, b, c ) {
+
+                var src = this.uvs;
+                var dst = this.object.geometry.uvs;
+
+                dst.push( src[ a + 0 ] );
+                dst.push( src[ a + 1 ] );
+                dst.push( src[ b + 0 ] );
+                dst.push( src[ b + 1 ] );
+                dst.push( src[ c + 0 ] );
+                dst.push( src[ c + 1 ] );
+
+            },
+
+            addUVLine: function ( a ) {
+
+                var src = this.uvs;
+                var dst = this.object.geometry.uvs;
+
+                dst.push( src[ a + 0 ] );
+                dst.push( src[ a + 1 ] );
+
+            },
+
+            addFace: function ( a, b, c, d, ua, ub, uc, ud, na, nb, nc, nd ) {
+
+                var vLen = this.vertices.length;
+
+                var ia = this.parseVertexIndex( a, vLen );
+                var ib = this.parseVertexIndex( b, vLen );
+                var ic = this.parseVertexIndex( c, vLen );
+                var id;
+
+                if ( d === undefined ) {
+
+                    this.addVertex( ia, ib, ic );
+
+                } else {
+
+                    id = this.parseVertexIndex( d, vLen );
+
+                    this.addVertex( ia, ib, id );
+                    this.addVertex( ib, ic, id );
+
+                }
+
+                if ( ua !== undefined ) {
+
+                    var uvLen = this.uvs.length;
+
+                    ia = this.parseUVIndex( ua, uvLen );
+                    ib = this.parseUVIndex( ub, uvLen );
+                    ic = this.parseUVIndex( uc, uvLen );
+
+                    if ( d === undefined ) {
+
+                        this.addUV( ia, ib, ic );
+
+                    } else {
+
+                        id = this.parseUVIndex( ud, uvLen );
+
+                        this.addUV( ia, ib, id );
+                        this.addUV( ib, ic, id );
+
+                    }
+
+                }
+
+                if ( na !== undefined ) {
+
+                    // Normals are many times the same. If so, skip function call and parseInt.
+                    var nLen = this.normals.length;
+                    ia = this.parseNormalIndex( na, nLen );
+
+                    ib = na === nb ? ia : this.parseNormalIndex( nb, nLen );
+                    ic = na === nc ? ia : this.parseNormalIndex( nc, nLen );
+
+                    if ( d === undefined ) {
+
+                        this.addNormal( ia, ib, ic );
+
+                    } else {
+
+                        id = this.parseNormalIndex( nd, nLen );
+
+                        this.addNormal( ia, ib, id );
+                        this.addNormal( ib, ic, id );
+
+                    }
+
+                }
+
+            },
+
+            addLineGeometry: function ( vertices, uvs ) {
+
+                this.object.geometry.type = 'Line';
+
+                var vLen = this.vertices.length;
+                var uvLen = this.uvs.length;
+
+                for ( var vi = 0, l = vertices.length; vi < l; vi ++ ) {
+
+                    this.addVertexLine( this.parseVertexIndex( vertices[ vi ], vLen ) );
+
+                }
+
+                for ( var uvi = 0, l = uvs.length; uvi < l; uvi ++ ) {
+
+                    this.addUVLine( this.parseUVIndex( uvs[ uvi ], uvLen ) );
+
+                }
+
+            }
+
+        };
+
+        state.startObject( '', false );
+
+        return state;
+
+    },
+
+    parse: function ( text ) {
+
+        console.time( 'OBJLoader' );
+
+        var state = this._createParserState();
+
+        if ( text.indexOf( '\r\n' ) !== - 1 ) {
+
+            // This is faster than String.split with regex that splits on both
+            text = text.replace( /\r\n/g, '\n' );
+
+        }
+
+        if ( text.indexOf( '\\\n' ) !== - 1) {
+
+            // join lines separated by a line continuation character (\)
+            text = text.replace( /\\\n/g, '' );
+
+        }
+
+        var lines = text.split( '\n' );
+        var line = '', lineFirstChar = '', lineSecondChar = '';
+        var lineLength = 0;
+        var result = [];
+
+        // Faster to just trim left side of the line. Use if available.
+        var trimLeft = ( typeof ''.trimLeft === 'function' );
+
+        for ( var i = 0, l = lines.length; i < l; i ++ ) {
+
+            line = lines[ i ];
+
+            line = trimLeft ? line.trimLeft() : line.trim();
+
+            lineLength = line.length;
+
+            if ( lineLength === 0 ) continue;
+
+            lineFirstChar = line.charAt( 0 );
+
+            // @todo invoke passed in handler if any
+            if ( lineFirstChar === '#' ) continue;
+
+            if ( lineFirstChar === 'v' ) {
+
+                lineSecondChar = line.charAt( 1 );
+
+                if ( lineSecondChar === ' ' && ( result = this.regexp.vertex_pattern.exec( line ) ) !== null ) {
+
+                    // 0                  1      2      3
+                    // ["v 1.0 2.0 3.0", "1.0", "2.0", "3.0"]
+
+                    state.vertices.push(
+                        parseFloat( result[ 1 ] ),
+                        parseFloat( result[ 2 ] ),
+                        parseFloat( result[ 3 ] )
+                    );
+
+                } else if ( lineSecondChar === 'n' && ( result = this.regexp.normal_pattern.exec( line ) ) !== null ) {
+
+                    // 0                   1      2      3
+                    // ["vn 1.0 2.0 3.0", "1.0", "2.0", "3.0"]
+
+                    state.normals.push(
+                        parseFloat( result[ 1 ] ),
+                        parseFloat( result[ 2 ] ),
+                        parseFloat( result[ 3 ] )
+                    );
+
+                } else if ( lineSecondChar === 't' && ( result = this.regexp.uv_pattern.exec( line ) ) !== null ) {
+
+                    // 0               1      2
+                    // ["vt 0.1 0.2", "0.1", "0.2"]
+
+                    state.uvs.push(
+                        parseFloat( result[ 1 ] ),
+                        parseFloat( result[ 2 ] )
+                    );
+
+                } else {
+
+                    throw new Error( "Unexpected vertex/normal/uv line: '" + line  + "'" );
+
+                }
+
+            } else if ( lineFirstChar === "f" ) {
+
+                if ( ( result = this.regexp.face_vertex_uv_normal.exec( line ) ) !== null ) {
+
+                    // f vertex/uv/normal vertex/uv/normal vertex/uv/normal
+                    // 0                        1    2    3    4    5    6    7    8    9   10         11         12
+                    // ["f 1/1/1 2/2/2 3/3/3", "1", "1", "1", "2", "2", "2", "3", "3", "3", undefined, undefined, undefined]
+
+                    state.addFace(
+                        result[ 1 ], result[ 4 ], result[ 7 ], result[ 10 ],
+                        result[ 2 ], result[ 5 ], result[ 8 ], result[ 11 ],
+                        result[ 3 ], result[ 6 ], result[ 9 ], result[ 12 ]
+                    );
+
+                } else if ( ( result = this.regexp.face_vertex_uv.exec( line ) ) !== null ) {
+
+                    // f vertex/uv vertex/uv vertex/uv
+                    // 0                  1    2    3    4    5    6   7          8
+                    // ["f 1/1 2/2 3/3", "1", "1", "2", "2", "3", "3", undefined, undefined]
+
+                    state.addFace(
+                        result[ 1 ], result[ 3 ], result[ 5 ], result[ 7 ],
+                        result[ 2 ], result[ 4 ], result[ 6 ], result[ 8 ]
+                    );
+
+                } else if ( ( result = this.regexp.face_vertex_normal.exec( line ) ) !== null ) {
+
+                    // f vertex//normal vertex//normal vertex//normal
+                    // 0                     1    2    3    4    5    6   7          8
+                    // ["f 1//1 2//2 3//3", "1", "1", "2", "2", "3", "3", undefined, undefined]
+
+                    state.addFace(
+                        result[ 1 ], result[ 3 ], result[ 5 ], result[ 7 ],
+                        undefined, undefined, undefined, undefined,
+                        result[ 2 ], result[ 4 ], result[ 6 ], result[ 8 ]
+                    );
+
+                } else if ( ( result = this.regexp.face_vertex.exec( line ) ) !== null ) {
+
+                    // f vertex vertex vertex
+                    // 0            1    2    3   4
+                    // ["f 1 2 3", "1", "2", "3", undefined]
+
+                    state.addFace(
+                        result[ 1 ], result[ 2 ], result[ 3 ], result[ 4 ]
+                    );
+
+                } else {
+
+                    throw new Error( "Unexpected face line: '" + line  + "'" );
+
+                }
+
+            } else if ( lineFirstChar === "l" ) {
+
+                var lineParts = line.substring( 1 ).trim().split( " " );
+                var lineVertices = [], lineUVs = [];
+
+                if ( line.indexOf( "/" ) === - 1 ) {
+
+                    lineVertices = lineParts;
+
+                } else {
+
+                    for ( var li = 0, llen = lineParts.length; li < llen; li ++ ) {
+
+                        var parts = lineParts[ li ].split( "/" );
+
+                        if ( parts[ 0 ] !== "" ) lineVertices.push( parts[ 0 ] );
+                        if ( parts[ 1 ] !== "" ) lineUVs.push( parts[ 1 ] );
+
+                    }
+
+                }
+                state.addLineGeometry( lineVertices, lineUVs );
+
+            } else if ( ( result = this.regexp.object_pattern.exec( line ) ) !== null ) {
+
+                // o object_name
+                // or
+                // g group_name
+
+                // WORKAROUND: https://bugs.chromium.org/p/v8/issues/detail?id=2869
+                // var name = result[ 0 ].substr( 1 ).trim();
+                var name = ( " " + result[ 0 ].substr( 1 ).trim() ).substr( 1 );
+
+                state.startObject( name );
+
+            } else if ( this.regexp.material_use_pattern.test( line ) ) {
+
+                // material
+
+                state.object.startMaterial( line.substring( 7 ).trim(), state.materialLibraries );
+
+            } else if ( this.regexp.material_library_pattern.test( line ) ) {
+
+                // mtl file
+
+                state.materialLibraries.push( line.substring( 7 ).trim() );
+
+            } else if ( ( result = this.regexp.smoothing_pattern.exec( line ) ) !== null ) {
+
+                // smooth shading
+
+                // @todo Handle files that have varying smooth values for a set of faces inside one geometry,
+                // but does not define a usemtl for each face set.
+                // This should be detected and a dummy material created (later MultiMaterial and geometry groups).
+                // This requires some care to not create extra material on each smooth value for "normal" obj files.
+                // where explicit usemtl defines geometry groups.
+                // Example asset: examples/models/obj/cerberus/Cerberus.obj
+
+                var value = result[ 1 ].trim().toLowerCase();
+                state.object.smooth = ( value === '1' || value === 'on' );
+
+                var material = state.object.currentMaterial();
+                if ( material ) {
+
+                    material.smooth = state.object.smooth;
+
+                }
+
+            } else {
+
+                // Handle null terminated files without exception
+                if ( line === '\0' ) continue;
+
+                throw new Error( "Unexpected line: '" + line  + "'" );
+
+            }
+
+        }
+
+        state.finalize();
+
+        var container = new THREE.Group();
+        container.materialLibraries = [].concat( state.materialLibraries );
+
+        for ( var i = 0, l = state.objects.length; i < l; i ++ ) {
+
+            var object = state.objects[ i ];
+            var geometry = object.geometry;
+            var materials = object.materials;
+            var isLine = ( geometry.type === 'Line' );
+
+            // Skip o/g line declarations that did not follow with any faces
+            if ( geometry.vertices.length === 0 ) continue;
+
+            var buffergeometry = new THREE.BufferGeometry();
+
+            buffergeometry.addAttribute( 'position', new THREE.BufferAttribute( new Float32Array( geometry.vertices ), 3 ) );
+
+            if ( geometry.normals.length > 0 ) {
+
+                buffergeometry.addAttribute( 'normal', new THREE.BufferAttribute( new Float32Array( geometry.normals ), 3 ) );
+
+            } else {
+
+                buffergeometry.computeVertexNormals();
+
+            }
+
+            if ( geometry.uvs.length > 0 ) {
+
+                buffergeometry.addAttribute( 'uv', new THREE.BufferAttribute( new Float32Array( geometry.uvs ), 2 ) );
+
+            }
+
+            // Create materials
+
+            var createdMaterials = [];
+
+            for ( var mi = 0, miLen = materials.length; mi < miLen ; mi++ ) {
+
+                var sourceMaterial = materials[mi];
+                var material = undefined;
+
+                if ( this.materials !== null ) {
+
+                    material = this.materials.create( sourceMaterial.name );
+
+                    // mtl etc. loaders probably can't create line materials correctly, copy properties to a line material.
+                    if ( isLine && material && ! ( material instanceof THREE.LineBasicMaterial ) ) {
+
+                        var materialLine = new THREE.LineBasicMaterial();
+                        materialLine.copy( material );
+                        materialLine.lights = false;
+                        material = materialLine;
+
+                    }
+
+                }
+
+                if ( ! material ) {
+
+                    material = ( ! isLine ? new THREE.MeshPhongMaterial() : new THREE.LineBasicMaterial() );
+                    material.name = sourceMaterial.name;
+
+                }
+
+                material.shading = sourceMaterial.smooth ? THREE.SmoothShading : THREE.FlatShading;
+
+                createdMaterials.push(material);
+
+            }
+
+            // Create mesh
+
+            var mesh;
+
+            if ( createdMaterials.length > 1 ) {
+
+                for ( var mi = 0, miLen = materials.length; mi < miLen ; mi++ ) {
+
+                    var sourceMaterial = materials[mi];
+                    buffergeometry.addGroup( sourceMaterial.groupStart, sourceMaterial.groupCount, mi );
+
+                }
+
+                var multiMaterial = new THREE.MultiMaterial( createdMaterials );
+                mesh = ( ! isLine ? new THREE.Mesh( buffergeometry, multiMaterial ) : new THREE.LineSegments( buffergeometry, multiMaterial ) );
+
+            } else {
+
+                mesh = ( ! isLine ? new THREE.Mesh( buffergeometry, createdMaterials[ 0 ] ) : new THREE.LineSegments( buffergeometry, createdMaterials[ 0 ] ) );
+            }
+
+            mesh.name = object.name;
+
+            container.add( mesh );
+
+        }
+
+        console.timeEnd( 'OBJLoader' );
+
+        return container;
+
+    }
+
+};
+
+module.exports = exports = OBJLoader;
+},{"../three64.js":87}],83:[function(require,module,exports){
 var THREE = require("./three64.js");    // Modified version to use 64-bit double precision floats for matrix math
 var ThreeboxConstants = require("./constants.js");
 var CameraSync = require("./Camera/CameraSync.js");
 var utils = require("./Utils/Utils.js");
 var AnimationManager = require("./Animation/AnimationManager.js");
+var SymbolLayer3D = require("./Layers/SymbolLayer3D.js");
 
 function Threebox(map){
     this.map = map;
@@ -8621,6 +10148,7 @@ function Threebox(map){
     this.renderer.domElement.style["position"] = "relative";
     this.renderer.domElement.style["pointer-events"] = "none";
     this.renderer.domElement.style["z-index"] = 1000;
+    this.renderer.domElement.style["transform"] = "scale(1,-1)";
 
     var _this = this;
     this.map.on("resize", function() { _this.renderer.setSize(_this.map.transform.width, _this.map.transform.height); } );
@@ -8628,6 +10156,7 @@ function Threebox(map){
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera( 28, window.innerWidth / window.innerHeight, 0.000001, 5000000000);
+    this.layers = [];
 
     // The CameraSync object will keep the Mapbox and THREE.js camera movements in sync.
     // It requires a world group to scale as we zoom in. Rotation is handled in the camera's
@@ -8714,23 +10243,19 @@ Threebox.prototype = {
             TODO: detect object type and actually do the meter-offset calculations for meshes
         */
 
-        if (options === undefined) {
-            options = {
-                "scaleToLatitude": true
-            };
-        }
+        if (options === undefined) options = {};
+        if(options.preScale === undefined) options.preScale = 1.0;
+        if(options.scaleToLatitude === undefined) options.scaleToLatitude = true;
 
         obj.position.copy(this.projectToWorld(lnglat));
 
         if(options.scaleToLatitude) {
             // Re-project mesh coordinates to mercator meters
-            var pixelsPerMeter = this.projectedUnitsPerMeter(lnglat[1]);
+            var pixelsPerMeter = this.projectedUnitsPerMeter(lnglat[1]) * options.preScale;
             obj.scale.set(pixelsPerMeter, pixelsPerMeter, pixelsPerMeter);
         }
         
         // this._scaleVerticesToMeters(lnglat, obj.geometry.vertices);
-
-        console.log(obj.position);
 
         obj.coordinates = lnglat;
 
@@ -8741,6 +10266,10 @@ Threebox.prototype = {
 
         return obj;
     },
+    moveToCoordinate: function(obj, lnglat) {
+        obj.position.copy(this.projectToWorld(lnglat));
+        return obj;
+    },
 
     addGeoreferencedMesh: function(mesh, options) {
         /* Place the mesh on the map, assuming its internal (x,y) coordinates are already in (longitude, latitude) format
@@ -8749,32 +10278,52 @@ Threebox.prototype = {
 
     },
 
+    addSymbolLayer: function(options) {
+        const layer = new SymbolLayer3D(this, options);
+        this.layers.push(layer);
+
+        return layer;
+    },
+
+    getDataLayer: function(id) {
+        for(var i = 0; i < this.layers.length; i++) {
+            if (this.layer.id === id) return layer;
+        }
+    },
+
     remove: function(obj) {
         this.world.remove(obj);
     },
 
     setupDefaultLights: function() {
-        this.scene.add( new THREE.AmbientLight( 0x999999 ) );
+        this.scene.add( new THREE.AmbientLight( 0xCCCCCC ) );
 
-        var lights = [];
-        lights[ 0 ] = new THREE.PointLight( 0x999999, 1, 0 );
-        lights[ 1 ] = new THREE.PointLight( 0x999999, 1, 0 );
-        lights[ 2 ] = new THREE.PointLight( 0x999999, 0.2, 0 );
+        var sunlight = new THREE.DirectionalLight(0xffffff, 0.5);
+        sunlight.position.set(0,800,1000);
+        sunlight.matrixWorldNeedsUpdate = true;
+        this.world.add(sunlight);
+        //this.world.add(sunlight.target);
 
-        lights[ 0 ].position.set( 0, 200, 1000 );
-        lights[ 1 ].position.set( 100, 200, 1000 );
-        lights[ 2 ].position.set( -100, -200, 0 );
+        // var lights = [];
+        // lights[ 0 ] = new THREE.PointLight( 0x999999, 1, 0 );
+        // lights[ 1 ] = new THREE.PointLight( 0x999999, 1, 0 );
+        // lights[ 2 ] = new THREE.PointLight( 0x999999, 0.2, 0 );
 
-        //scene.add( lights[ 0 ] );
-        this.scene.add( lights[ 1 ] );
-        this.scene.add( lights[ 2 ] );
+        // lights[ 0 ].position.set( 0, 200, 1000 );
+        // lights[ 1 ].position.set( 100, 200, 1000 );
+        // lights[ 2 ].position.set( -100, -200, 0 );
+
+        // //scene.add( lights[ 0 ] );
+        // this.scene.add( lights[ 1 ] );
+        // this.scene.add( lights[ 2 ] );
+        
     }
 }
 
 module.exports = exports = Threebox;
 
 
-},{"./Animation/AnimationManager.js":78,"./Camera/CameraSync.js":79,"./Utils/Utils.js":81,"./constants.js":82,"./three64.js":83}],81:[function(require,module,exports){
+},{"./Animation/AnimationManager.js":78,"./Camera/CameraSync.js":79,"./Layers/SymbolLayer3D.js":80,"./Utils/Utils.js":84,"./constants.js":86,"./three64.js":87}],84:[function(require,module,exports){
 var THREE = require("../three64.js");    // Modified version to use 64-bit double precision floats for matrix math
 
 function prettyPrintMatrix(uglymatrix){
@@ -8831,7 +10380,19 @@ module.exports.prettyPrintMatrix = prettyPrintMatrix;
 module.exports.makePerspectiveMatrix = makePerspectiveMatrix;
 module.exports.radify = radify;
 module.exports.degreeify = degreeify;
-},{"../three64.js":83}],82:[function(require,module,exports){
+},{"../three64.js":87}],85:[function(require,module,exports){
+const ValueGenerator = function(input) {
+    if(typeof input === 'object' && input.property !== undefined)    // Value name comes from a property in each item
+        return (f => f.properties[input.property]);
+    else if(typeof input === 'object' && input.generator !== undefined)   // Value name generated by a function run on each item
+        return input.generator;
+    else return (() => input);
+
+    return undefined;
+}
+
+module.exports = exports = ValueGenerator;
+},{}],86:[function(require,module,exports){
 const WORLD_SIZE = 512;
 const MERCATOR_A = 6378137.0;
 
@@ -8844,7 +10405,7 @@ module.exports = exports = {
     EARTH_CIRCUMFERENCE: 40075000, // In meters
 
 }
-},{}],83:[function(require,module,exports){
+},{}],87:[function(require,module,exports){
 (function (global, factory) {
 	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
 	typeof define === 'function' && define.amd ? define(['exports'], factory) :

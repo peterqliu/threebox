@@ -3,6 +3,7 @@ var ThreeboxConstants = require("./constants.js");
 var CameraSync = require("./Camera/CameraSync.js");
 var utils = require("./Utils/Utils.js");
 var AnimationManager = require("./Animation/AnimationManager.js");
+var SymbolLayer3D = require("./Layers/SymbolLayer3D.js");
 
 function Threebox(map){
     this.map = map;
@@ -16,6 +17,7 @@ function Threebox(map){
     this.renderer.domElement.style["position"] = "relative";
     this.renderer.domElement.style["pointer-events"] = "none";
     this.renderer.domElement.style["z-index"] = 1000;
+    this.renderer.domElement.style["transform"] = "scale(1,-1)";
 
     var _this = this;
     this.map.on("resize", function() { _this.renderer.setSize(_this.map.transform.width, _this.map.transform.height); } );
@@ -23,6 +25,7 @@ function Threebox(map){
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera( 28, window.innerWidth / window.innerHeight, 0.000001, 5000000000);
+    this.layers = [];
 
     // The CameraSync object will keep the Mapbox and THREE.js camera movements in sync.
     // It requires a world group to scale as we zoom in. Rotation is handled in the camera's
@@ -109,23 +112,19 @@ Threebox.prototype = {
             TODO: detect object type and actually do the meter-offset calculations for meshes
         */
 
-        if (options === undefined) {
-            options = {
-                "scaleToLatitude": true
-            };
-        }
+        if (options === undefined) options = {};
+        if(options.preScale === undefined) options.preScale = 1.0;
+        if(options.scaleToLatitude === undefined) options.scaleToLatitude = true;
 
         obj.position.copy(this.projectToWorld(lnglat));
 
         if(options.scaleToLatitude) {
             // Re-project mesh coordinates to mercator meters
-            var pixelsPerMeter = this.projectedUnitsPerMeter(lnglat[1]);
+            var pixelsPerMeter = this.projectedUnitsPerMeter(lnglat[1]) * options.preScale;
             obj.scale.set(pixelsPerMeter, pixelsPerMeter, pixelsPerMeter);
         }
         
         // this._scaleVerticesToMeters(lnglat, obj.geometry.vertices);
-
-        console.log(obj.position);
 
         obj.coordinates = lnglat;
 
@@ -136,6 +135,10 @@ Threebox.prototype = {
 
         return obj;
     },
+    moveToCoordinate: function(obj, lnglat) {
+        obj.position.copy(this.projectToWorld(lnglat));
+        return obj;
+    },
 
     addGeoreferencedMesh: function(mesh, options) {
         /* Place the mesh on the map, assuming its internal (x,y) coordinates are already in (longitude, latitude) format
@@ -144,25 +147,45 @@ Threebox.prototype = {
 
     },
 
+    addSymbolLayer: function(options) {
+        const layer = new SymbolLayer3D(this, options);
+        this.layers.push(layer);
+
+        return layer;
+    },
+
+    getDataLayer: function(id) {
+        for(var i = 0; i < this.layers.length; i++) {
+            if (this.layer.id === id) return layer;
+        }
+    },
+
     remove: function(obj) {
         this.world.remove(obj);
     },
 
     setupDefaultLights: function() {
-        this.scene.add( new THREE.AmbientLight( 0x999999 ) );
+        this.scene.add( new THREE.AmbientLight( 0xCCCCCC ) );
 
-        var lights = [];
-        lights[ 0 ] = new THREE.PointLight( 0x999999, 1, 0 );
-        lights[ 1 ] = new THREE.PointLight( 0x999999, 1, 0 );
-        lights[ 2 ] = new THREE.PointLight( 0x999999, 0.2, 0 );
+        var sunlight = new THREE.DirectionalLight(0xffffff, 0.5);
+        sunlight.position.set(0,800,1000);
+        sunlight.matrixWorldNeedsUpdate = true;
+        this.world.add(sunlight);
+        //this.world.add(sunlight.target);
 
-        lights[ 0 ].position.set( 0, 200, 1000 );
-        lights[ 1 ].position.set( 100, 200, 1000 );
-        lights[ 2 ].position.set( -100, -200, 0 );
+        // var lights = [];
+        // lights[ 0 ] = new THREE.PointLight( 0x999999, 1, 0 );
+        // lights[ 1 ] = new THREE.PointLight( 0x999999, 1, 0 );
+        // lights[ 2 ] = new THREE.PointLight( 0x999999, 0.2, 0 );
 
-        //scene.add( lights[ 0 ] );
-        this.scene.add( lights[ 1 ] );
-        this.scene.add( lights[ 2 ] );
+        // lights[ 0 ].position.set( 0, 200, 1000 );
+        // lights[ 1 ].position.set( 100, 200, 1000 );
+        // lights[ 2 ].position.set( -100, -200, 0 );
+
+        // //scene.add( lights[ 0 ] );
+        // this.scene.add( lights[ 1 ] );
+        // this.scene.add( lights[ 2 ] );
+        
     }
 }
 
