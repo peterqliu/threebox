@@ -135,7 +135,17 @@ Threebox.prototype = {
 
         return obj;
     },
-    moveToCoordinate: function(obj, lnglat) {
+    moveToCoordinate: function(obj, lnglat, options) {
+        if (options === undefined) options = {};
+        if(options.preScale === undefined) options.preScale = 1.0;
+        if(options.scaleToLatitude === undefined) options.scaleToLatitude = true;
+
+        if(options.scaleToLatitude) {
+            // Re-project mesh coordinates to mercator meters
+            var pixelsPerMeter = this.projectedUnitsPerMeter(lnglat[1]) * options.preScale;
+            obj.scale.set(pixelsPerMeter, pixelsPerMeter, pixelsPerMeter);
+        }
+
         obj.position.copy(this.projectToWorld(lnglat));
         return obj;
     },

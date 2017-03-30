@@ -89,14 +89,17 @@ SymbolLayer3D.prototype = {
             // Check for any features that are not have not been updated and remove them from the scene
             for(key in this.features) {
                 if(!key in oldFeatures) {
-                    this.parent.remove(this.features[key].rawObject);
-                    delete this.features[key];
+                    this.removeFeature(key);
                 }
             }
         }
 
         this.source = source;
 
+    },
+    removeFeature: function(key) {
+        this.parent.remove(this.features[key].rawObject);
+        delete this.features[key];
     },
     _initialize: function() {
         var modelNames = [];
@@ -178,6 +181,7 @@ SymbolLayer3D.prototype = {
             const f = features[key];
             const position = f.geojson.geometry.coordinates;
             const scale = this.scaleGen(f.geojson);
+
             const rotation = this.rotationGen(f.geojson);
 
             var obj;
@@ -197,7 +201,7 @@ SymbolLayer3D.prototype = {
             }
             else {
                 obj = f.rawObject;
-                this.parent.moveToCoordinate(obj, position);
+                this.parent.moveToCoordinate(obj, position, {scaleToLatitude: this.scaleWithMapProjection, preScale: scale});
             }
 
             obj.rotation.copy(rotation);

@@ -27,7 +27,7 @@
     mapboxgl.accessToken = config.accessToken;
     var map = new mapboxgl.Map({
       container: 'map',
-      style: 'mapbox://styles/mapbox/dark-v9',
+      style: 'mapbox://styles/mapbox/streets-v9',
       center: [-122.4131, 37.7743],
       zoom: 15.95,
       pitch: 60,
@@ -51,6 +51,7 @@
                 type: "Feature",
                 properties: {
                     heading: randomRange(0, 360),
+                    size: 100,
                     id: i
                 },
                 geometry: {
@@ -63,15 +64,17 @@
 
         var symbols = threebox.addSymbolLayer({
             id:             "trucks",
-            source:         source, //"data/points.geojson",
+            source:         source, // You can also specify a URL or relative path such as "data/points.geojson",
             modelName:      "Truck",    // will look for an .obj and .mtl file with this name
             modelDirectory: "models/",          // in this directory
             rotation:       { generator: feature => (new THREE.Euler(Math.PI / 2, 0, feature.properties['heading'] * Math.PI / 180 + Math.PI / 2, "ZXY")) },
-            rotationTransition: {time: 1000, easing: "linear"},
-            scale:          100,
+            scale:          { property: 'size' },
             scaleWithMapProjection: true,
             key:            { property: "id" }
         });
+
+        // That's all you need to add a static 3D sybmol layer!
+        // This next chunk of code generates random motion for each truck and shows how to update the layer's data.
 
         var lastT = performance.now();
         const drive = (t) => {
@@ -79,12 +82,12 @@
             lastT = t;
             const fpsFactor = dT / 16.7;
 
-            //console.log("FPS", (1000/dT).toFixed(2));
             var source = symbols.source;
             if(symbols.loaded && source) {
 
-                const speed = 0.000005 * fpsFactor;
-                source.features.forEach(f => {
+
+                const speed = 0.00001 * fpsFactor;
+                source.features.forEach((f,i) => {
                     const dX = Math.sin((f.properties.heading + 90) * Math.PI / 180) * speed;
                     const dY = Math.cos((f.properties.heading + 90) * Math.PI / 180) * speed;
                     if(f.properties.headingChange === undefined) f.properties.headingChange = 0;
@@ -92,7 +95,11 @@
                     f.properties.headingChange = Math.min(f.properties.headingChange, 0.25);
                     f.properties.headingChange = Math.max(f.properties.headingChange, -0.25);
                     f.properties.heading += f.properties.headingChange * fpsFactor;
-                    f.geometry.coordinates = [f.geometry.coordinates[0] + dX, f.geometry.coordinates[1] + dY]
+
+                    //const bounce = Math.cos((t/(10000+i%50) + i) * 100) * 1;
+                    const bounce = 0;
+                    f.geometry.coordinates = [f.geometry.coordinates[0] + dX, f.geometry.coordinates[1] + dY, (bounce + 1)*10]
+                    f.properties.size += bounce;
                 });
 
                 symbols.updateSourceData(source);
@@ -101,34 +108,6 @@
             window.requestAnimationFrame(drive);
         }
         drive();
-
-        // source3D.onEnter(function(feature) {
-
-        // });
-
-        // source3D.onUpdate(function(feature, sceneObject) {
-        //     // if(featureIsSpecialInSomeWay) {
-        //     //     return {rotation: 0}
-        //     // }
-        // });
-
-        // source3D.onExit(function(feature) {
-
-        // });
-
-        // Transitions on:
-        // - Scale xyz
-        // - Translation offset
-        // - Opacity
-        // - Rotate
-        // window.setInteval(function(t) {
-        //     var newData = downloadNewData(url);
-        //     source3D.updateData(newData);    
-        // }, 1000);
-        
-        // source3D.setProperty({
-        //     rotation: { generator: feature => feature.properties['heading'] }
-        // });
     });
 
     function randomRange(low, high) {
