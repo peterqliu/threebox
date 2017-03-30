@@ -22,13 +22,11 @@ The `FeatureCollection` should contain a `features` array, and each feature shou
 
 ### Scaling and units
 
-The `scaleWithMapProjection` parameter can help when choosing units and scale factors for 3D symbols on a map. If set to `true` (default), the units of the 3D model file will be interpreted as **meters** at each feature's latitude. This means objects closer to the equator will be automatically scaled to appear smaller than objects closer to the poles. This lets you model your 3D symbols using real-world units and have them appear correctly at all latitudes.
+The `scaleWithMapProjection` parameter can help when choosing units and scale factors for 3D symbols on a map. If set to `true` (default), the units of the 3D model file will be interpreted as **meters** at each feature's latitude. Because of distortion inherent in the Mercator projection, this means objects closer to the equator will be automatically scaled to appear smaller than objects closer to the poles. This lets you model your 3D symbols using real-world units and have them appear correctly at all latitudes.
 
-If `scaleWithMapProjection` is set to false, the correspondence between your 3D symbol model units and map units can be defined however you see fit.
+If `scaleWithMapProjection` is set to `false`, the correspondence between your 3D symbol model units and map units can be defined however you see fit.
 
-Units in 3D files coming from different sources tend be somewhat arbitrary and dependent on the context they are rendered into. In `threebox`, a line going from `{latitude: 0, longitude: 0}` to `{latitude: 0, longitude: 360}` (circumnavigating the world once at the equator) would measure 512 units long. Because of this, building- or vehicle-sized objects must generally be scaled down significantly to appear correctly.
-
-To complicate matters, because of distortion introduced in the Mercator projection, an object of constant size in the `threebox` coordinate system will correspond to an object of varying real-world size as it moves north or south.
+Units in 3D files coming from different sources tend be somewhat arbitrary and dependent on the context they are rendered into. In `threebox`, a line going from `{latitude: 0, longitude: 0}` to `{latitude: 0, longitude: 360}` (circumnavigating the world once at the equator) would measure 512 units long. Because of this, building- or vehicle-sized objects must generally be scaled down significantly to appear correctly if `scaleWithMapProject` is set to `false`.
 
 ### Models
 

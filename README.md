@@ -2,14 +2,20 @@
 
 A three.js plugin for Mapbox GL JS, with support for basic animation and advanced 3D rendering.
 
+## Usage
 
-###`var scene = new threebox(map);`
+### `var scene = new threebox(map);`
 
 Instantiates a threebox canvas atop the Mapbox GL canvas object
 
 - `map` Mapbox GL JS map object
 
-###`var object = scene.addObject(position, mesh);`
+### [`SymbolLayer3D`](/docs/SymbolLayer3D.md)
+
+The `SymbolLayer3D` object lets you load in a GeoJSON `FeatureCollection` of points and will automically place 3D models at each point. For usage, see the [documentation](/docs/SymbolLayer3D.md).
+
+
+### `var object = scene.addObject(position, mesh);`
 Add object to the threebox scene.
 
 - `position` `[longitude, latitude, elevation]` coordinates that define a point in space. Defaults to `[0,0,0]`.
@@ -17,12 +23,12 @@ Add object to the threebox scene.
 - `mesh` A  three.js [mesh object](https://threejs.org/docs/?q=mesh#Reference/Objects/Mesh), typically consisting of a geometry and a material.
 
 
-###`scene.removeObject(object);`
+### `scene.removeObject(object);`
 
 Removes object from the scene.
 
 
-###`object.set(state, options);`
+### `object.set(state, options);`
 
 Move object to a new position and orientation. No animation by default.
 
@@ -34,7 +40,7 @@ Move object to a new position and orientation. No animation by default.
 - `options`
 	- `duration` time to animate this movement linearly, in seconds.
 
-###`object.followPath(coordinates, options);`
+### `object.followPath(coordinates, options);`
 
 - `coordinates` a series of `[longitude, latitude, elevation]` coordinates that describe a line path.
 - `options` optional
@@ -46,4 +52,4 @@ Move object to a new position and orientation. No animation by default.
 
 or to continually rebuild as you develop:
 
-`watchify main.js -o dist/threebox.js`
+`npm run dev`
