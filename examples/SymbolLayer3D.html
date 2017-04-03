@@ -86,20 +86,17 @@
             if(symbols.loaded && source) {
 
 
-                const speed = 0.00001 * fpsFactor;
+                const speed = 0.0001 * fpsFactor;
                 source.features.forEach((f,i) => {
                     const dX = Math.sin((f.properties.heading + 90) * Math.PI / 180) * speed;
                     const dY = Math.cos((f.properties.heading + 90) * Math.PI / 180) * speed;
                     if(f.properties.headingChange === undefined) f.properties.headingChange = 0;
-                    f.properties.headingChange += (Math.random() - 0.5) / 20 * fpsFactor;
-                    f.properties.headingChange = Math.min(f.properties.headingChange, 0.25);
-                    f.properties.headingChange = Math.max(f.properties.headingChange, -0.25);
+                    f.properties.headingChange += (Math.random() - 0.5) * 2 * fpsFactor;
+                    f.properties.headingChange = Math.min(f.properties.headingChange, 5);
+                    f.properties.headingChange = Math.max(f.properties.headingChange, -5);
                     f.properties.heading += f.properties.headingChange * fpsFactor;
 
-                    //const bounce = Math.cos((t/(10000+i%50) + i) * 100) * 1;
-                    const bounce = 0;
-                    f.geometry.coordinates = [f.geometry.coordinates[0] + dX, f.geometry.coordinates[1] + dY, (bounce + 1)*10]
-                    f.properties.size += bounce;
+                    f.geometry.coordinates = [f.geometry.coordinates[0] + dX, f.geometry.coordinates[1] + dY]
                 });
 
                 symbols.updateSourceData(source);

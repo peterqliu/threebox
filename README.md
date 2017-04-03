@@ -2,6 +2,19 @@
 
 A three.js plugin for Mapbox GL JS, with support for basic animation and advanced 3D rendering.
 
+## Features
+### Current
+These features currently have a dedicated interface in `threebox`.
+- [![3D Symbol Layers](docs/img/features-3D-symbols.png)](/docs/SymbolLayer3D.md)
+
+### Planned
+These features should be possible to implement using Three.js today but would benefit from a more geographic/map-specific interface in a future version of `threebox`.
+- ![3D Paths](docs/img/features-3D-paths.png)
+- ![Point Clouds](docs/img/features-point-clouds.png)
+- ![Complex 3D Buildings](docs/img/features-complex-buildings.png)
+- ![GLSL Shaders](docs/img/features-shaders.png)
+- ![3D Terrain](docs/img/features-terrain.png)
+
 ## Usage
 
 ### `var scene = new threebox(map);`
