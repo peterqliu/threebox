@@ -6,7 +6,9 @@ A three.js plugin for Mapbox GL JS, with support for basic animation and advance
 ### Current
 These features currently have a dedicated interface in `threebox`.
 
-[![3D Symbol Layers](docs/img/features-3D-symbols.png)](/docs/SymbolLayer3D.md)
+![3D Symbol Layers](docs/img/features-3D-symbols.png)
+
+#### :point_right: [SymbolLayer3D 📝](/docs/SymbolLayer3D.md)
 
 ### Planned
 These features should be possible to implement using Three.js today but would benefit from a more geographic/map-specific interface in a future version of `threebox`.
