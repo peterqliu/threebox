@@ -9808,7 +9808,7 @@ OBJLoader.prototype = {
 
     parse: function ( text ) {
 
-        console.time( 'OBJLoader' );
+        //console.time( 'OBJLoader' );
 
         var state = this._createParserState();
 
@@ -10123,7 +10123,7 @@ OBJLoader.prototype = {
 
         }
 
-        console.timeEnd( 'OBJLoader' );
+        //console.timeEnd( 'OBJLoader' );
 
         return container;
 
@@ -10205,7 +10205,7 @@ Threebox.prototype = {
         return result;
     },
     projectedUnitsPerMeter: function(latitude) {
-        return Math.abs(ThreeboxConstants.WORLD_SIZE * Math.cos(latitude*Math.PI/180)/ThreeboxConstants.EARTH_CIRCUMFERENCE);
+        return 2 * Math.abs(ThreeboxConstants.WORLD_SIZE * (1 / Math.cos(latitude*Math.PI/180))/ThreeboxConstants.EARTH_CIRCUMFERENCE);
     },
     _scaleVerticesToMeters: function(centerLatLng, vertices) {
         var pixelsPerMeter = this.projectedUnitsPerMeter(centerLatLng[1]);

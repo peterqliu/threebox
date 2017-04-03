@@ -1,7 +1,7 @@
 {
   "name": "threebox",
   "version": "0.1.0",
-  "description": "Tools to augment the Mapbox GL JS map rendering library with the power of the Three.js 3D library",
+  "description": "A Mapbox GL JS plugin that combines the power of the Three.js 3D library with Mapbox geospatial tools.",
   "main": "dist/threebox.js",
   "jsnextmain": "dist/threebox.js",
   "repository": "peterqliu/threebox",
@@ -11,8 +11,7 @@
   "bugs": {
     "url": "https://github.com/peterqliu/threebox/issues"
   },
-  "dependencies": {
-    "@turf/turf": "*",
+  "dev-dependencies": {
     "tap-prettify": "0.0.2",
     "tape": "^4.6.3"
   },

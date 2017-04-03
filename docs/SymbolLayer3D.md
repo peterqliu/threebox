@@ -1,3 +1,5 @@
+![3D Symbol Layers](img/features-3D-symbols.png)
+
 ## SymbolLayer3D
 
 Create a 3D symbol layer using this syntax:

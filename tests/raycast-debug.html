@@ -24,7 +24,7 @@
     mapboxgl.accessToken = 'pk.eyJ1Ijoia3JvbmljayIsImEiOiJjaWxyZGZwcHQwOHRidWxrbnd0OTB0cDBzIn0.u2R3NY5PnevWH3cHRk6TWQ';
     var map = new mapboxgl.Map({
       container: 'map',
-      style: 'mapbox://styles/mapbox/streets-v8',
+      style: 'mapbox://styles/mapbox/streets-v9',
       center: [-122.8170, 37.7894],
       zoom: 8.55,
       pitch: 60,
@@ -32,35 +32,41 @@
       hash: true
     });
 
+    var highlighted = [];
+
     map.on("load", function() {
         // Initialize threebox
         window.threebox = new Threebox(map);
         threebox.setupDefaultLights();
 
-        var geometry = new THREE.BoxGeometry(10000, 10000, 10000);
+        var geometry = new THREE.BoxGeometry(1000, 1000, 1000);
         var greenMaterial = new THREE.MeshPhongMaterial( {color: 0xaaffaa, side: THREE.DoubleSide});
         var redMaterial = new THREE.MeshPhongMaterial( {color: 0xffaaaa, side: THREE.DoubleSide});
         
         var cube = new THREE.Mesh(geometry, greenMaterial);
-        threebox.addAtCoordinate(cube, [-122.4131, 37.9743, 100000]);
+        threebox.addAtCoordinate(cube, [-122.4131, 37.9743, 10000]);
         cube.userData.name = "Green cube";
-        var cube2 = new THREE.Mesh(geometry, redMaterial);
-        cube2.userData.name = "Red cube";
-        threebox.addAtCoordinate(cube2, [-123.4131, 37.7743, 25000]);
 
         for(var i = 0; i < 1000; i++) {
             _cube = new THREE.Mesh(geometry, redMaterial);
             _cube.userData.name = "Red cube #" + i;
-            threebox.addAtCoordinate(_cube, [-123.4131, 37.7743 + i * 0.05, 25000]);
+            threebox.addAtCoordinate(_cube, [-123.4131 + Math.cos(i/5.0) * 0.5, 37.7743 + i * 0.05, 2500]);
         }
 
         map.on('mousemove', function(e){
             var raycaster = new THREE.Raycaster();
             var mouse = new THREE.Vector2();
 
+            // Clear old objects
+            highlighted.forEach(function(h) {
+                h.object.material = redMaterial;
+            });
+            highlighted.length = 0;
+
             // scale mouse pixel position to a percentage of the screen's width and height
             mouse.x = ( e.point.x / threebox.map.transform.width ) * 2 - 1;
-            mouse.y = - ( e.point.y / threebox.map.transform.height ) * 2 + 1;
+            mouse.y = - ( (threebox.map.transform.height - e.point.y) / threebox.map.transform.height ) * 2 + 1;
+            // console.log(e.point.y);
 
             raycaster.setFromCamera(mouse, threebox.camera);
 
@@ -69,6 +75,9 @@
             intersects.forEach(function(i) {
                 if(i.object.userData.name !== undefined) console.log("Mouse over '" + i.object.userData.name + "'");
                 else console.log("Mouse over '" + i.object.userData.uuid     + "'");
+
+                i.object.material = greenMaterial;
+                highlighted.push(i);
             });
             
         });
