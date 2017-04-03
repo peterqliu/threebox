@@ -53,7 +53,7 @@
                     heading: randomRange(0, 360),
                     headingChange: 0,
                     zAcceleration: 0,
-                    size: 100,
+                    size: 20,
                     id: i
                 },
                 geometry: {
@@ -88,14 +88,14 @@
             var source = symbols.source;
             if(symbols.loaded && source) {
 
-                const kSeparation = -0.0000001;
+                const kSeparation = -0.00000001;
                 const nSeparation = Math.ceil(source.features.length / 20);
                 const separationDistance = 0.00005;
 
                 const kAlignment = 0.01;
                 const nAlignment = 5;
 
-                const kCohesion = 0.001;
+                const kCohesion = 0.0005;
                 const nCohesion = Math.ceil(source.features.length / 4);
 
                 const headingDiff = (a,b) => (((((a - b) % 360) + 540) % 360) - 180);

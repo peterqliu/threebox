@@ -27,7 +27,7 @@
     mapboxgl.accessToken = config.accessToken;
     var map = new mapboxgl.Map({
       container: 'map',
-      style: 'mapbox://styles/mapbox/streets-v8',
+      style: 'mapbox://styles/mapbox/streets-v9',
       center: [-122.4131, 37.7743],
       zoom: 15.95,
       pitch: 60,
@@ -40,13 +40,6 @@
         window.threebox = new Threebox(map);
         threebox.setupDefaultLights();
 
-        var geometry = new THREE.PlaneGeometry(6378137, 6378137, 1);
-        var material = new THREE.MeshPhongMaterial( {color: 0xaaffaa, side: THREE.DoubleSide});
-        material.wireframe = true;
-        var plane = new THREE.Mesh(geometry, material);
-        threebox.addAtCoordinate(plane, [-122.41356, 37.77577 ,500]);
-
-        // threebox.addAtCoordinate(plane, [0,0]);
 
         // Load and manipulate a THREE.js scenegraph as you would normally
         loader = new THREE.JSONLoader();
@@ -56,14 +49,14 @@
             geometry.rotateY((90/360)*2*Math.PI);
             geometry.rotateX((90/360)*2*Math.PI);
 
-            var material = new THREE.MeshPhongMaterial( {color: 0xaaffaa, side: THREE.DoubleSide}); //material = new THREE.MeshPhongMaterial( { color:0xaaffaa, side: THREE.DoubleSide, shininess:0 } );
+            var material = new THREE.MeshPhongMaterial( {color: 0xaaaaff, side: THREE.DoubleSide}); //material = new THREE.MeshPhongMaterial( { color:0xaaffaa, side: THREE.DoubleSide, shininess:0 } );
             aircraft = new THREE.Mesh( geometry, material );
             // geometry.computeFaceNormals();
             // geometry.computeVertexNormals();
-            var planePosition = [-122.41356, 37.77577 ,500];
+            var planePosition = [-122.41356, 37.77577 ,100];
 
             // Add the model to the threebox scenegraph at a specific geographic coordinate
-            threebox.addAtCoordinate(aircraft, planePosition, {scaleToLatitude: true, preScale: 10});
+            threebox.addAtCoordinate(aircraft, planePosition, {scaleToLatitude: true, preScale: 2});
             
             //threebox.scene.add(aircraft);
         });
