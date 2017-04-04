@@ -1,14 +1,12 @@
 {
   "name": "threebox",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "description": "A Mapbox GL JS plugin that combines the power of the Three.js 3D library with Mapbox geospatial tools.",
-  "main": "Threebox.js",
-  "jsnextmain": "dist/threebox.js",
+  "main": "main.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/peterqliu/threebox.git"
   },
-  "module": "dist/threebox.js",
   "author": "@peterqliu and @kronick",
   "license": "MIT",
   "bugs": {
