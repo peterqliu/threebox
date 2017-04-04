@@ -11,6 +11,18 @@ Add it to your project via `npm`:
 
 or download the bundle from [`dist/threebox.js`](dist/threebox.js) and add include it in a `<script>` tag on your page.
 
+## Documentation
+
+### [`Threebox`](/docs/Threebox.md)
+
+Set up and handle the core translations between a Three.js scene graph and the Mapbox GL JS map.
+
+
+### [`SymbolLayer3D`](/docs/SymbolLayer3D.md)
+
+The `SymbolLayer3D` object lets you load in a GeoJSON `FeatureCollection` of points and will automatically place 3D models at each point.
+
+
 ## Features
 ### Current
 These features currently have a dedicated interface in `threebox`.
@@ -31,21 +43,6 @@ These features should be possible to implement using Three.js today but would be
 ![GLSL Shaders](docs/img/features-shaders.png)
 
 ![3D Terrain](docs/img/features-terrain.png)
-
-## Usage
-
-
-### [`Threebox`](/docs/Threebox.md)
-
-Set up and handle the core translations between a Three.js scene graph and the Mapbox GL JS map.
-
-
-### [`SymbolLayer3D`](/docs/SymbolLayer3D.md)
-
-The `SymbolLayer3D` object lets you load in a GeoJSON `FeatureCollection` of points and will automatically place 3D models at each point.
-
-
-
 
 
 ## Building
