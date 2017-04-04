@@ -2,7 +2,7 @@ var THREE = require("./three64.js");    // Modified version to use 64-bit double
 var ThreeboxConstants = require("./constants.js");
 var CameraSync = require("./Camera/CameraSync.js");
 var utils = require("./Utils/Utils.js");
-var AnimationManager = require("./Animation/AnimationManager.js");
+//var AnimationManager = require("./Animation/AnimationManager.js");
 var SymbolLayer3D = require("./Layers/SymbolLayer3D.js");
 
 function Threebox(map){
@@ -35,14 +35,16 @@ function Threebox(map){
     this.scene.add(this.world);
     this.cameraSynchronizer = new CameraSync(this.map, this.camera, this.world);
 
-    this.animationManager = new AnimationManager();
+    //this.animationManager = new AnimationManager();
     this.update();
 }
 
 Threebox.prototype = {
+    SymbolLayer3D: SymbolLayer3D,
+
     update: function(timestamp) {
         // Update any animations
-        this.animationManager.update(timestamp);
+        //this.animationManager.update(timestamp);
 
         // Render the scene
         this.renderer.render( this.scene, this.camera );
@@ -131,7 +133,7 @@ Threebox.prototype = {
         this.world.add(obj);
 
         // Bestow this mesh with animation superpowers and keeps track of its mvoements in the global animation queue
-        this.animationManager.enroll(obj); 
+        //this.animationManager.enroll(obj); 
 
         return obj;
     },
