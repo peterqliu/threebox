@@ -1,6 +1,8 @@
 ![3D Symbol Layers](img/features-3D-symbols.png)
 
-## SymbolLayer3D
+## `SymbolLayer3D`
+
+The `SymbolLayer3D` object lets you load in a GeoJSON FeatureCollection of points and will automatically place 3D models at each point.
 
 Create a 3D symbol layer using this syntax:
 ```
@@ -15,6 +17,11 @@ var symbols = threebox.addSymbolLayer({
   key:            property | generator
 });
 ```
+
+### Examples
+
+- [Static symbol layer](../examples/SymbolLayer3D.html)
+- [Flocking demo showing fast updates and generator functions](../examples/flocking.html)
 
 ### Sources
 

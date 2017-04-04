@@ -4,8 +4,8 @@
     <script src="../dist/threebox.js" type="text/javascript"></script>
     <script src="config.js"></script>
 
-    <script src='https://api.mapbox.com/mapbox-gl-js/v0.29.0/mapbox-gl.js'></script>
-    <link href='https://api.mapbox.com/mapbox-gl-js/v0.29.0/mapbox-gl.css' rel='stylesheet' />
+    <script src='https://api.mapbox.com/mapbox-gl-js/v0.34.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v0.34.0/mapbox-gl.css' rel='stylesheet' />
     <style>
         body, html { 
             width: 100%;
@@ -41,30 +41,9 @@
         window.threebox = new Threebox(map);
         threebox.setupDefaultLights();
 
-        var source = {
-            type: "FeatureCollection",
-            features: []
-        };
-
-        for (var i = 0; i < 100; i++) {
-            var newFeat = {
-                type: "Feature",
-                properties: {
-                    heading: randomRange(0, 360),
-                    size: 20,
-                    id: i
-                },
-                geometry: {
-                    type: "Point",
-                    coordinates: [randomRange(-122.508544921875, -122.37945556640624), randomRange(37.70229391925025, 37.800289863702076)]
-                }
-            }
-            source.features.push(newFeat);
-        }
-
         var symbols = threebox.addSymbolLayer({
             id:             "trucks",
-            source:         source, // You can also specify a URL or relative path such as "data/points.geojson",
+            source:         "data/points.geojson",
             modelName:      "Truck",    // will look for an .obj and .mtl file with this name
             modelDirectory: "models/",          // in this directory
             rotation:       { generator: feature => (new THREE.Euler(Math.PI / 2, 0, feature.properties['heading'] * Math.PI / 180 + Math.PI / 2, "ZXY")) },
@@ -74,42 +53,24 @@
         });
 
         // That's all you need to add a static 3D sybmol layer!
-        // This next chunk of code generates random motion for each truck and shows how to update the layer's data.
 
-        var lastT = performance.now();
-        const drive = (t) => {
-            const dT = t - lastT;
-            lastT = t;
-            const fpsFactor = dT / 16.7;
-
-            var source = symbols.source;
-            if(symbols.loaded && source) {
-
-
-                const speed = 0.0001 * fpsFactor;
-                source.features.forEach((f,i) => {
-                    const dX = Math.sin((f.properties.heading + 90) * Math.PI / 180) * speed;
-                    const dY = Math.cos((f.properties.heading + 90) * Math.PI / 180) * speed;
-                    if(f.properties.headingChange === undefined) f.properties.headingChange = 0;
-                    f.properties.headingChange += (Math.random() - 0.5) * 2 * fpsFactor;
-                    f.properties.headingChange = Math.min(f.properties.headingChange, 5);
-                    f.properties.headingChange = Math.max(f.properties.headingChange, -5);
-                    f.properties.heading += f.properties.headingChange * fpsFactor;
-
-                    f.geometry.coordinates = [f.geometry.coordinates[0] + dX, f.geometry.coordinates[1] + dY]
-                });
-
-                symbols.updateSourceData(source);
+        // Add a native Mapbox GL JS circle layer to highlight each truck location
+        map.addLayer({
+            id: 'truck-circles',
+            type: 'circle',
+            source: {
+                type: 'geojson',
+                data: "data/points.geojson"
+            },
+            paint: {
+                'circle-radius': {
+                    stops: [[12,10], [22,500]]
+                },
+                'circle-color': "#ffffff",
+                'circle-opacity': 0.5
             }
-
-            window.requestAnimationFrame(drive);
-        }
-        drive();
+        });
+        
     });
-
-    function randomRange(low, high) {
-        return Math.random() * (high - low) + low;
-    }
-
     </script>
 </body>
