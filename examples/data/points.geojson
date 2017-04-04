@@ -5,7 +5,8 @@
       "type": "Feature",
       "properties": {
         "id": "001",
-        "heading": 0
+        "heading": 0,
+        "size": 20
       },
       "geometry": {
         "type": "Point",
@@ -19,7 +20,8 @@
       "type": "Feature",
       "properties": {
         "id": "002",
-        "heading": 10
+        "heading": 10,
+        "size": 22
       },
       "geometry": {
         "type": "Point",
@@ -33,7 +35,8 @@
       "type": "Feature",
       "properties": {
         "id": "003",
-        "heading": 20
+        "heading": 20,
+        "size": 18
       },
       "geometry": {
         "type": "Point",
@@ -47,7 +50,8 @@
       "type": "Feature",
       "properties": {
         "id": "004",
-        "heading": 30
+        "heading": 30,
+        "size": 20
       },
       "geometry": {
         "type": "Point",
@@ -61,7 +65,8 @@
       "type": "Feature",
       "properties": {
         "id": "005",
-        "heading": 40
+        "heading": 40,
+        "size": 24
       },
       "geometry": {
         "type": "Point",
@@ -75,7 +80,8 @@
       "type": "Feature",
       "properties": {
         "id": "006",
-        "heading": 50
+        "heading": 50,
+        "size": 27
       },
       "geometry": {
         "type": "Point",
@@ -89,7 +95,8 @@
       "type": "Feature",
       "properties": {
         "id": "007",
-        "heading": 60
+        "heading": 60,
+        "size": 22
       },
       "geometry": {
         "type": "Point",
@@ -103,7 +110,8 @@
       "type": "Feature",
       "properties": {
         "id": "008",
-        "heading": 70
+        "heading": 70,
+        "size": 30
       },
       "geometry": {
         "type": "Point",
@@ -117,7 +125,8 @@
       "type": "Feature",
       "properties": {
         "id": "009",
-        "heading": 80
+        "heading": 80,
+        "size": 20
       },
       "geometry": {
         "type": "Point",
@@ -131,7 +140,8 @@
       "type": "Feature",
       "properties": {
         "id": "010",
-        "heading": 90
+        "heading": 90,
+        "size": 20
       },
       "geometry": {
         "type": "Point",

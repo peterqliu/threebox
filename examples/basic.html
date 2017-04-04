@@ -1,11 +1,11 @@
 <!doctype html>
 <head>
-    <title>Threebox example</title>
+    <title>Threebox Basic Example</title>
     <script src="../dist/threebox.js" type="text/javascript"></script>
     <script src="config.js"></script>
 
-    <script src='https://api.mapbox.com/mapbox-gl-js/v0.29.0/mapbox-gl.js'></script>
-    <link href='https://api.mapbox.com/mapbox-gl-js/v0.29.0/mapbox-gl.css' rel='stylesheet' />
+    <script src='https://api.mapbox.com/mapbox-gl-js/v0.34.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v0.34.0/mapbox-gl.css' rel='stylesheet' />
     <style>
         body, html { 
             width: 100%;
@@ -45,20 +45,15 @@
         loader = new THREE.JSONLoader();
 
         loader.load("models/boeing747-400-jw.json", function(geometry) {
-            console.log("Model loaded");
             geometry.rotateY((90/360)*2*Math.PI);
             geometry.rotateX((90/360)*2*Math.PI);
 
-            var material = new THREE.MeshPhongMaterial( {color: 0xaaaaff, side: THREE.DoubleSide}); //material = new THREE.MeshPhongMaterial( { color:0xaaffaa, side: THREE.DoubleSide, shininess:0 } );
+            var material = new THREE.MeshPhongMaterial( {color: 0xaaaaff, side: THREE.DoubleSide}); 
             aircraft = new THREE.Mesh( geometry, material );
-            // geometry.computeFaceNormals();
-            // geometry.computeVertexNormals();
             var planePosition = [-122.41356, 37.77577 ,100];
 
             // Add the model to the threebox scenegraph at a specific geographic coordinate
             threebox.addAtCoordinate(aircraft, planePosition, {scaleToLatitude: true, preScale: 2});
-            
-            //threebox.scene.add(aircraft);
         });
 
     });
