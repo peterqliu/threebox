@@ -58,8 +58,6 @@ CameraSync.prototype = {
 
         this.camera.matrixWorld.copy(cameraWorldMatrix);
 
-        
-        utils.prettyPrintMatrix(this.camera.matrixWorld.elements);
 
         var zoomPow =  this.map.transform.scale; 
         // Handle scaling and translation of objects in the map in the world's matrix transform, not the camera
