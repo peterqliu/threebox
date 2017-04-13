@@ -72,7 +72,7 @@ Threebox.prototype = {
         return result;
     },
     projectedUnitsPerMeter: function(latitude) {
-        return 2 * Math.abs(ThreeboxConstants.WORLD_SIZE * (1 / Math.cos(latitude*Math.PI/180))/ThreeboxConstants.EARTH_CIRCUMFERENCE);
+        return Math.abs(ThreeboxConstants.WORLD_SIZE * (1 / Math.cos(latitude*Math.PI/180))/ThreeboxConstants.EARTH_CIRCUMFERENCE);
     },
     _scaleVerticesToMeters: function(centerLatLng, vertices) {
         var pixelsPerMeter = this.projectedUnitsPerMeter(centerLatLng[1]);
