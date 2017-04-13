@@ -1,6 +1,6 @@
 {
   "name": "threebox",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "A Mapbox GL JS plugin that combines the power of the Three.js 3D library with Mapbox geospatial tools.",
   "main": "main.js",
   "repository": {
