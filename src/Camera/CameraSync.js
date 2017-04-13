@@ -41,7 +41,6 @@ CameraSync.prototype = {
         // Add a bit extra to avoid precision problems when a fragment's distance is exactly `furthestDistance`
         const farZ = furthestDistance * 1.01;
 
-
         this.camera.projectionMatrix = utils.makePerspectiveMatrix(fov, this.map.transform.width / this.map.transform.height, 1, farZ);
         
 
@@ -59,6 +58,9 @@ CameraSync.prototype = {
 
         this.camera.matrixWorld.getInverse(cameraWorldMatrix);
 
+        
+        utils.prettyPrintMatrix(this.camera.matrixWorld.elements);
+
         var zoomPow =  this.map.transform.scale; 
         // Handle scaling and translation of objects in the map in the world's matrix transform, not the camera
         var scale = new THREE.Matrix4;
@@ -67,8 +69,8 @@ CameraSync.prototype = {
         var rotateMap = new THREE.Matrix4;
 
         scale.makeScale(zoomPow, zoomPow , zoomPow );
-        translateCenter.makeTranslation(ThreeboxConstants.WORLD_SIZE/2, ThreeboxConstants.WORLD_SIZE / 2, 0);
-        translateMap.makeTranslation(-this.map.transform.x, this.map.transform.y - ThreeboxConstants.WORLD_SIZE * zoomPow, 0);
+        translateCenter.makeTranslation(ThreeboxConstants.WORLD_SIZE/2, -ThreeboxConstants.WORLD_SIZE / 2, 0);
+        translateMap.makeTranslation(-this.map.transform.x, this.map.transform.y , 0);
         rotateMap.makeRotationZ(Math.PI);
         this.world.matrix = new THREE.Matrix4;
         this.world.matrix
