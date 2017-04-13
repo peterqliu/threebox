@@ -50,7 +50,7 @@
         for(var i = 0; i < 1000; i++) {
             _cube = new THREE.Mesh(geometry, redMaterial);
             _cube.userData.name = "Red cube #" + i;
-            threebox.addAtCoordinate(_cube, [-123.4131 + Math.cos(i/5.0) * 0.5, 37.7743 + i * 0.05, 2500]);
+            threebox.addAtCoordinate(_cube, [-123.4131 + Math.cos(i/5.0) * 0.5, 37.7743 + i * 0.05, 2500], {preScale: 1});
         }
 
         map.on('mousemove', function(e){
@@ -65,13 +65,15 @@
 
             // scale mouse pixel position to a percentage of the screen's width and height
             mouse.x = ( e.point.x / threebox.map.transform.width ) * 2 - 1;
-            mouse.y = - ( (threebox.map.transform.height - e.point.y) / threebox.map.transform.height ) * 2 + 1;
+            mouse.y = -( ( e.point.y) / threebox.map.transform.height ) * 2 + 1;
+            console.log(mouse.x, mouse.y);
             // console.log(e.point.y);
 
             raycaster.setFromCamera(mouse, threebox.camera);
 
             // calculate objects intersecting the picking ray
-            var intersects = raycaster.intersectObjects(threebox.world.children);
+            var intersects = raycaster.intersectObjects(threebox.world.children, true);
+            console.log(intersects);
             intersects.forEach(function(i) {
                 if(i.object.userData.name !== undefined) console.log("Mouse over '" + i.object.userData.name + "'");
                 else console.log("Mouse over '" + i.object.userData.uuid     + "'");

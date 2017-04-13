@@ -53,7 +53,7 @@
                     heading: randomRange(0, 360),
                     headingChange: 0,
                     zAcceleration: 0,
-                    size: 20,
+                    size: 60,
                     id: i
                 },
                 geometry: {
@@ -69,7 +69,7 @@
             source:         source, // You can also specify a URL or relative path such as "data/points.geojson",
             modelName:      "Truck",    // will look for an .obj and .mtl file with this name
             modelDirectory: "models/",          // in this directory
-            rotation:       { generator: feature => (new THREE.Euler(Math.PI / 2, feature.properties['headingChange'] * 10  * Math.PI / 180, feature.properties['heading'] * Math.PI / 180, "ZYX")) },
+            rotation:       { generator: feature => (new THREE.Euler(Math.PI / 2, -feature.properties['headingChange'] * 10  * Math.PI / 180, -feature.properties['heading'] * Math.PI / 180, "ZYX")) },
             scale:          { property: 'size' },
             scaleWithMapProjection: true,
             key:            { property: "id" }
@@ -100,7 +100,7 @@
 
                 const headingDiff = (a,b) => (((((a - b) % 360) + 540) % 360) - 180);
 
-                const speed = 0.0002;
+                const speed = 0.0001;
                 const targetAltitude = 10000000/Math.pow(2, map.transform.zoom);
                 source.features.forEach((f,i) => {
                     if(f.properties.headingChange === undefined) f.properties.headingChange = 0;
