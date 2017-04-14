@@ -63,8 +63,6 @@ CameraSync.prototype = {
 
         this.camera.matrixWorld.copy(cameraWorldMatrix);
 
-        
-        utils.prettyPrintMatrix(this.camera.matrixWorld.elements);
 
         var zoomPow =  this.map.transform.scale; 
         // Handle scaling and translation of objects in the map in the world's matrix transform, not the camera
@@ -224,7 +222,9 @@ SymbolLayer3D.prototype = {
 
         // And load models asynchronously
         var remaining = Object.keys(this.models).length;
+        console.log("Loading " + remaining + " models", this.models);
         const modelComplete = (m) => {
+            console.log("Model complete!", m);
             //if(this.models[m].loaded) 
             if(--remaining === 0) {
                 this.loaded = true;
@@ -237,31 +237,32 @@ SymbolLayer3D.prototype = {
             const objLoader = new OBJLoader();
             const materialLoader = new MTLLoader();
 
-            var loadObject = (materials) => {
+            var loadObject = ((modelName) => { return (materials) => {
+                // Closure madness!
                 if(materials) {
                     materials.preload();
 
                     for(material in (materials.materials)) {
                         materials.materials[material].shininess /= 50;  // Shininess exported by Blender is way too high
-                        //materials.materials[material].lights = false;
-                        // materials.materials[material].setValues({lights: false});
-                        // materials.materials[material].setValues({doubleSided: true});
                     }
                     
                     objLoader.setMaterials( materials );
                 }
-                objLoader.setPath(this.models[m].directory);
-                objLoader.load(this.models[m].name + ".obj", obj => {
-                    this.models[m].obj = obj;
-                    this.models[m].isMesh = obj.isMesh;
-                    this.models[m].loaded = true;
+                objLoader.setPath(this.models[modelName].directory);
+                
+                console.log("Loading model ", modelName);
 
-                    modelComplete(m);
+                objLoader.load(this.models[modelName].name + ".obj", obj => {
+                    this.models[modelName].obj = obj;
+                    this.models[modelName].isMesh = obj.isMesh;
+                    this.models[modelName].loaded = true;
+
+                    modelComplete(modelName);
                 }, () => (null), error => {
                     console.error("Could not load SymbolLayer3D model file.");    
                 } );
 
-            }
+            }})(m);
 
             materialLoader.setPath(this.models[m].directory);
             materialLoader.load(this.models[m].name + ".mtl", loadObject, () => (null), error => {
@@ -300,30 +301,7 @@ SymbolLayer3D.prototype = {
 
             obj.rotation.copy(rotation);
         }
-    },
-    // _addFeaturesToScene: function(model) {
-    //     for (key in this.features) {
-    //         var f = this.features[key];
-    //         if (f.model !== model) continue;
-    //         console.log("Adding feature");
-    //         console.log(f);
-
-    //         //console.log(this.models[model]);
-    //         const obj = this.models[model].obj.clone();
-    //         // geometry.computeFaceNormals();
-    //         // geometry.computeVertexNormals();
-    //         const position = f.geojson.geometry.coordinates;
-            
-    //         const scale = this.scaleGen(f.geojson);
-    //         var rotation = this.rotationGen(f.geojson);
-    //         obj.rotation.copy(rotation);
-    //         // Add the model to the threebox scenegraph at a specific geographic coordinate
-    //         this.parent.addAtCoordinate(obj, position, {scaleToLatitude: this.scaleWithMapProjection, preScale: scale});
-
-    //         this.features[key].rawObject = obj;
-    //     }
-    // }
-
+    }
 }
 
 module.exports = exports = SymbolLayer3D;
