@@ -3,6 +3,7 @@ const ThreeboxConstants = require("../constants.js");
 const utils = require("../Utils/Utils.js");
 const ValueGenerator = require("../Utils/ValueGenerator.js");
 const OBJLoader = require("../Loaders/OBJLoader.js");
+const GLTFLoader = require("../Loaders/GLTFLoader.js");
 const MTLLoader = require("../Loaders/MTLLoader.js");
 
 console.log(THREE);
@@ -18,6 +19,8 @@ function SymbolLayer3D(parent, options) {
         options.key = { generator: (v,i) => i };
         console.warn("Using array index for SymbolLayer3D key property.");
     }
+    if(options.fileType === undefined) options.fileType = 'obj';    // 'gltf' is also valid
+    if(options.sortFacesByMaterial === undefined) options.sortFacesByMaterial = false;
 
     this.parent = parent;
 
@@ -32,9 +35,12 @@ function SymbolLayer3D(parent, options) {
     this.modelNameGen = ValueGenerator(options.modelName);
     this.rotationGen = ValueGenerator(options.rotation);
     this.scaleGen = ValueGenerator(options.scale);
+    this.fileTypeGen = ValueGenerator(options.fileType);
+
     this.models = Object.create(null);
     this.features = Object.create(null);
     this.scaleWithMapProjection = options.scaleWithMapProjection;
+    this.sortFacesByMaterial = options.sortFacesByMaterial;
 
     this.loaded = false;
 
@@ -109,6 +115,8 @@ SymbolLayer3D.prototype = {
             return console.error("Invalid model name definition provided to SymbolLayer3D");
         if(!this.modelDirectoryGen)
             return console.error("Invalid model directory definition provided to SymbolLayer3D");
+        if(!this.fileTypeGen)
+            return console.error("Invalid file type definition provided to SymbolLayer3D");
 
         // Add features to a map
         this.source.features.forEach((f,i) => {
@@ -117,16 +125,18 @@ SymbolLayer3D.prototype = {
 
             const modelDirectory = this.modelDirectoryGen(f,i);
             const modelName = this.modelNameGen(f,i);
+            const filetype = this.fileTypeGen(f,i);
             this.features[key] = {
                 geojson: f,
-                model: modelDirectory + modelName
+                model: modelDirectory + modelName,
+                fileType: filetype
             }
 
-            modelNames.push({directory: modelDirectory, name: modelName});
+            modelNames.push({directory: modelDirectory, name: modelName, fileType: filetype});
         });
 
         // Filter out only unique models
-        modelNames.forEach(m => this.models[(m.directory + m.name)] = { directory: m.directory, name: m.name, loaded: false });
+        modelNames.forEach(m => this.models[(m.directory + m.name)] = { directory: m.directory, name: m.name, loaded: false, fileType: m.fileType });
 
         // And load models asynchronously
         var remaining = Object.keys(this.models).length;
@@ -141,42 +151,84 @@ SymbolLayer3D.prototype = {
         }
 
         for (m in this.models) {
+            console.log(this.models[m]);
             // TODO: Support formats other than OBJ/MTL
-            const objLoader = new OBJLoader();
-            const materialLoader = new MTLLoader();
+    
+            if(this.models[m].fileType === 'obj') {
+                const loader = new OBJLoader();
 
-            var loadObject = ((modelName) => { return (materials) => {
-                // Closure madness!
-                if(materials) {
-                    materials.preload();
+                const materialLoader = new MTLLoader();
 
-                    for(material in (materials.materials)) {
-                        materials.materials[material].shininess /= 50;  // Shininess exported by Blender is way too high
+                var loadObject = ((modelName) => { return (materials) => {
+                    // Closure madness!
+                    if(materials) {
+                        materials.preload();
+
+                        for(material in (materials.materials)) {
+                            materials.materials[material].shininess /= 50;  // Shininess exported by Blender is way too high
+                        }
+                        
+                        loader.setMaterials( materials );
                     }
+                    loader.setPath(this.models[modelName].directory);
                     
-                    objLoader.setMaterials( materials );
-                }
-                objLoader.setPath(this.models[modelName].directory);
-                
-                console.log("Loading model ", modelName);
+                    console.log("Loading model ", modelName);
 
-                objLoader.load(this.models[modelName].name + ".obj", obj => {
+                    loader.load(this.models[modelName].name + ".obj", obj => {
+
+                        this.models[modelName].obj = obj;
+                        this.models[modelName].loaded = true;
+
+                        modelComplete(modelName);
+                    }, () => (null), ((modelMame) => { return error => {
+                        console.error("Could not load SymbolLayer3D model file.");    
+                        modelComplete(modelName);
+                    }})(m) );
+
+                }})(m);
+
+                materialLoader.setPath(this.models[m].directory);
+                materialLoader.load(this.models[m].name + ".mtl", loadObject, () => (null), error => {
+                    console.warn("No material file found for SymbolLayer3D model " + m);
+                    loadObject();
+                });
+            }
+            else if(this.models[m].fileType === 'gltf') {
+                console.log("Loading model ", m);
+                const loader = new GLTFLoader();
+                const extension = '.gltf'
+                loader.setPath(this.models[m].directory);
+                loader.load(this.models[m].directory + '/' + this.models[m].name + extension, ((modelName) => { return (obj) => {
+                    console.log(obj);
                     this.models[modelName].obj = obj;
-                    this.models[modelName].isMesh = obj.isMesh;
                     this.models[modelName].loaded = true;
-
                     modelComplete(modelName);
-                }, () => (null), error => {
-                    console.error("Could not load SymbolLayer3D model file.");    
-                } );
+                }})(m), () => (null), ((modelName) => { return (error) => {
+                    console.error("Could not load SymbolLayer3D model file", modelName);
+                    modelComplete(modelName);
+                }})(m));
+            }
+            else if(this.models[m].fileType === 'json') {
+                console.log("Loading model ", m);
+                const loader = new THREE.JSONLoader();
+                const extension = '.json';
+                loader.setTexturePath(this.models[m].directory);
+                loader.load(this.models[m].directory + '/' + this.models[m].name + extension, ((modelName) => { return (geometry, materials) => {
+                    var material = new THREE.MultiMaterial(materials);
+                    if(this.sortFacesByMaterial) geometry.sortFacesByMaterialIndex();
+                    var bufferGeometry = new THREE.BufferGeometry();
+                    bufferGeometry.fromGeometry(geometry);
+                    var obj = new THREE.Mesh(bufferGeometry, material);
 
-            }})(m);
-
-            materialLoader.setPath(this.models[m].directory);
-            materialLoader.load(this.models[m].name + ".mtl", loadObject, () => (null), error => {
-                console.warn("No material file found for SymbolLayer3D model " + m);
-                loadObject();
-            });
+                    console.log('Loaded!', obj);
+                    this.models[modelName].obj = obj;
+                    this.models[modelName].loaded = true;
+                    modelComplete(modelName);
+                }})(m), () => (null), ((modelName) => { return (error) => {
+                    console.error("Could not load SymbolLayer3D model file", modelName);
+                    modelComplete(modelName);
+                }})(m));
+            }
         }
     },
     _addOrUpdateFeatures: function(features) {
@@ -190,8 +242,15 @@ SymbolLayer3D.prototype = {
             var obj;
             if (!f.rawObject) {
                 // Need to create a scene graph object and add it to the scene
-                if(f.model && this.models[f.model] && this.models[f.model].obj && this.models[f.model].loaded)
-                    obj = this.models[f.model].obj.clone();
+                console.log(this.models[f.model]);
+                if(f.model && this.models[f.model] && this.models[f.model].obj && this.models[f.model].loaded) {
+                    if(this.models[f.model].fileType === 'gltf') {
+                        obj = this.models[f.model].obj.scene.clone();
+                    }
+                    else {
+                        obj = this.models[f.model].obj.clone();
+                    }
+                }
                 else {
                     console.warn("Model not loaded: " + f.model);
                     obj = new THREE.Group();    // Temporary placeholder if the model doesn't exist and/or will be loaded later

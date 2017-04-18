@@ -4,6 +4,7 @@ var CameraSync = require("./Camera/CameraSync.js");
 var utils = require("./Utils/Utils.js");
 //var AnimationManager = require("./Animation/AnimationManager.js");
 var SymbolLayer3D = require("./Layers/SymbolLayer3D.js");
+const GLTFLoader = require("./Loaders/GLTFLoader.js");
 
 function Threebox(map){
     this.map = map;

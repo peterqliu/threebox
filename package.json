@@ -12,13 +12,14 @@
   "bugs": {
     "url": "https://github.com/peterqliu/threebox/issues"
   },
-  "dev-dependencies": {
-    "tap-prettify": "0.0.2",
-    "tape": "^4.6.3"
-  },
   "scripts": {
     "build": "browserify exports.js > dist/threebox.js",
     "dev": "watchify exports.js --verbose -o dist/threebox.js",
     "test": "browserify tests/threebox-tests.js > tests/threebox-tests-bundle.js; echo 'Open tests/threebox-tests.html to run tests in the browser.'"
+  },
+  "devDependencies": {
+    "obj2gltf": "^1.0.0",
+    "tap-prettify": "0.0.2",
+    "tape": "^4.6.3"
   }
 }
