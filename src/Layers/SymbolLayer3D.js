@@ -97,6 +97,16 @@ SymbolLayer3D.prototype = {
         this.source = source;
 
     },
+    hideFeature: function(key) {
+      this.features[key].rawObject.traverse(function(object){
+        object.visible = false;
+      });
+    },
+    showFeature: function(key) {
+      this.features[key].rawObject.traverse(function(object){
+        object.visible = true;
+      });
+    },
     removeFeature: function(key) {
         this.parent.remove(this.features[key].rawObject);
         delete this.features[key];
@@ -133,7 +143,7 @@ SymbolLayer3D.prototype = {
         console.log("Loading " + remaining + " models", this.models);
         const modelComplete = (m) => {
             console.log("Model complete!", m);
-            //if(this.models[m].loaded) 
+            //if(this.models[m].loaded)
             if(--remaining === 0) {
                 this.loaded = true;
                 this._addOrUpdateFeatures(this.features);
@@ -153,11 +163,11 @@ SymbolLayer3D.prototype = {
                     for(material in (materials.materials)) {
                         materials.materials[material].shininess /= 50;  // Shininess exported by Blender is way too high
                     }
-                    
+
                     objLoader.setMaterials( materials );
                 }
                 objLoader.setPath(this.models[modelName].directory);
-                
+
                 console.log("Loading model ", modelName);
 
                 objLoader.load(this.models[modelName].name + ".obj", obj => {
@@ -167,7 +177,7 @@ SymbolLayer3D.prototype = {
 
                     modelComplete(modelName);
                 }, () => (null), error => {
-                    console.error("Could not load SymbolLayer3D model file.");    
+                    console.error("Could not load SymbolLayer3D model file.");
                 } );
 
             }})(m);
