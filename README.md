@@ -54,3 +54,9 @@ or to continually rebuild as you develop:
 `npm run dev`
 
 Both commands will output a bundled in `/dist/threebox.js`.
+
+## Run
+
+`node server.js`
+
+
