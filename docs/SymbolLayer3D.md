@@ -109,3 +109,7 @@ This will update a single feature in the collection while leaving all the others
 If this behavior is not desired, `updateSourceData` takes an optional second parameter, `absolute`, that if set to `true` will delete any features not included in the updated GeoJSON.
 
 To remove a feature, use the `SymbolLayer3D.removeFeature` method and specify the `key` of the feature you want to remove.
+
+To hide a feature, use the `SymbolLayer3D.hideFeature` method and specify the `key` of the feature you want to hide.
+
+To show a previously hidden feature, use the `SymbolLayer3D.showFeature` method and specify the `key` of the feature you want to show.
