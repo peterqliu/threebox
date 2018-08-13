@@ -47,7 +47,7 @@ CameraSync.prototype = {
         const farZ = furthestDistance * 1.01;
 
         this.camera.projectionMatrix = utils.makePerspectiveMatrix(fov, this.map.transform.width / this.map.transform.height, 1, farZ);
-
+        
 
         var cameraWorldMatrix = new THREE.Matrix4();
         var cameraTranslateZ = new THREE.Matrix4().makeTranslation(0,0,cameraToCenterDistance);
@@ -59,12 +59,12 @@ CameraSync.prototype = {
         cameraWorldMatrix
             .premultiply(cameraTranslateZ)
             .premultiply(cameraRotateX)
-            .premultiply(cameraRotateZ);
+            .premultiply(cameraRotateZ);            
 
         this.camera.matrixWorld.copy(cameraWorldMatrix);
 
 
-        var zoomPow =  this.map.transform.scale;
+        var zoomPow =  this.map.transform.scale; 
         // Handle scaling and translation of objects in the map in the world's matrix transform, not the camera
         var scale = new THREE.Matrix4;
         var translateCenter = new THREE.Matrix4;
@@ -189,16 +189,6 @@ SymbolLayer3D.prototype = {
         this.source = source;
 
     },
-    hideFeature: function(key) {
-      this.features[key].rawObject.traverse(function(object){
-        object.visible = false;
-      });
-    },
-    showFeature: function(key) {
-      this.features[key].rawObject.traverse(function(object){
-        object.visible = true;
-      });
-    },
     removeFeature: function(key) {
         this.parent.remove(this.features[key].rawObject);
         delete this.features[key];
@@ -235,7 +225,7 @@ SymbolLayer3D.prototype = {
         console.log("Loading " + remaining + " models", this.models);
         const modelComplete = (m) => {
             console.log("Model complete!", m);
-            //if(this.models[m].loaded)
+            //if(this.models[m].loaded) 
             if(--remaining === 0) {
                 this.loaded = true;
                 this._addOrUpdateFeatures(this.features);
@@ -255,11 +245,11 @@ SymbolLayer3D.prototype = {
                     for(material in (materials.materials)) {
                         materials.materials[material].shininess /= 50;  // Shininess exported by Blender is way too high
                     }
-
+                    
                     objLoader.setMaterials( materials );
                 }
                 objLoader.setPath(this.models[modelName].directory);
-
+                
                 console.log("Loading model ", modelName);
 
                 objLoader.load(this.models[modelName].name + ".obj", obj => {
@@ -269,7 +259,7 @@ SymbolLayer3D.prototype = {
 
                     modelComplete(modelName);
                 }, () => (null), error => {
-                    console.error("Could not load SymbolLayer3D model file.");
+                    console.error("Could not load SymbolLayer3D model file.");    
                 } );
 
             }})(m);
@@ -1670,7 +1660,7 @@ Threebox.prototype = {
             -ThreeboxConstants.MERCATOR_A * coords[0] * ThreeboxConstants.DEG2RAD * ThreeboxConstants.PROJECTION_WORLD_SIZE,
             -ThreeboxConstants.MERCATOR_A * Math.log(Math.tan((Math.PI*0.25) + (0.5 * coords[1] * ThreeboxConstants.DEG2RAD))) * ThreeboxConstants.PROJECTION_WORLD_SIZE
         ];
-
+     
         var pixelsPerMeter = this.projectedUnitsPerMeter(coords[1]);
 
         //z dimension
@@ -1727,9 +1717,9 @@ Threebox.prototype = {
         this._flipMaterialSides(obj);
         this.world.add(geoGroup);
         this.moveToCoordinate(obj, lnglat, options);
-
+        
         // Bestow this mesh with animation superpowers and keeps track of its movements in the global animation queue
-        //this.animationManager.enroll(obj);
+        //this.animationManager.enroll(obj); 
 
         return obj;
     },
@@ -1819,7 +1809,7 @@ Threebox.prototype = {
         // //scene.add( lights[ 0 ] );
         // this.scene.add( lights[ 1 ] );
         // this.scene.add( lights[ 2 ] );
-
+        
     }
 }
 
@@ -17670,7 +17660,7 @@ module.exports = exports = {
 				size = 2;
 
 			} else {
-
+				
 				type = gl.UNSIGNED_BYTE;
 				size = 1;
 			}
@@ -21409,7 +21399,7 @@ module.exports = exports = {
 			}
 
 			scope.numPlanes = nPlanes;
-
+			
 			return dstArray;
 
 		}
