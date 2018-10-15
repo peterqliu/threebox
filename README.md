@@ -1,6 +1,6 @@
 
 
-EDIT 10/15/18 : MapboxGL now supports [https://blog.mapbox.com/launching-custom-layers-with-uber-2a235841a125](custom layers) to bring Three right into the same context! Archiving this repo for now.
+EDIT 10/15/18 : MapboxGL now supports [`https://blog.mapbox.com/launching-custom-layers-with-uber-2a235841a125`](custom layers) to bring Three right into the same context! Archiving this repo for now.
 
 # `threebox`
 
