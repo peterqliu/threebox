@@ -1,3 +1,7 @@
+
+
+EDIT 10/15/18 : MapboxGL now supports [https://blog.mapbox.com/launching-custom-layers-with-uber-2a235841a125](custom layers) to bring Three right into the same context! Archiving this repo for now.
+
 # `threebox`
 
 A three.js plugin for Mapbox GL JS, with support for basic animation and advanced 3D rendering.
