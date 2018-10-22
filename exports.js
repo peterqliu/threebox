@@ -1,2 +1,2 @@
-window.Threebox = require('./src/Threebox'),
-window.THREE = require('./src/three64.js')
+window.Threebox = require('./src/Threebox.js'),
+window.THREE = require('./src/three94.js')

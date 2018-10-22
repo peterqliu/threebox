@@ -1,30 +1,30 @@
-var THREE = require("./three64.js");    // Modified version to use 64-bit double precision floats for matrix math
-var ThreeboxConstants = require("./constants.js");
+var THREE = require("./three94.js");
 var CameraSync = require("./Camera/CameraSync.js");
 var utils = require("./Utils/Utils.js");
-//var AnimationManager = require("./Animation/AnimationManager.js");
+var AnimationManager = require("./Animation/AnimationManager.js");
 var SymbolLayer3D = require("./Layers/SymbolLayer3D.js");
+var ThreeboxConstants = require("../src/constants.js");
 
-function Threebox(map){
+
+function Threebox(map, glContext){
+
     this.map = map;
 
     // Set up a THREE.js scene
-    this.renderer = new THREE.WebGLRenderer( { alpha: true, antialias:true} );
-    this.renderer.setSize( this.map.transform.width, this.map.transform.height );
+    this.renderer = new THREE.WebGLRenderer( { 
+        alpha: true, 
+        antialias: true,
+        canvas: map.getCanvas(),
+        context: glContext
+    } );
+
     this.renderer.shadowMap.enabled = true;
-
-    this.map._container.appendChild( this.renderer.domElement );
-    this.renderer.domElement.style["position"] = "relative";
-    this.renderer.domElement.style["pointer-events"] = "none";
-    this.renderer.domElement.style["z-index"] = 1000;
-    //this.renderer.domElement.style["transform"] = "scale(1,-1)";
-
-    var _this = this;
-    this.map.on("resize", function() { _this.renderer.setSize(_this.map.transform.width, _this.map.transform.height); } );
+    this.renderer.autoClear = false;
 
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera( 28, window.innerWidth / window.innerHeight, 0.000001, 5000000000);
+    this.camera.needsUpdate = true;
     this.layers = [];
 
     // The CameraSync object will keep the Mapbox and THREE.js camera movements in sync.
@@ -35,26 +35,48 @@ function Threebox(map){
     this.scene.add(this.world);
     this.cameraSynchronizer = new CameraSync(this.map, this.camera, this.world);
 
-    //this.animationManager = new AnimationManager();
-    this.update();
+
+
+    this.animationManager = new AnimationManager();
+
+    this.needsRerender = false;
+
+    this.sceneRerender()
+
+
 }
 
 Threebox.prototype = {
-    SymbolLayer3D: SymbolLayer3D,
 
-    update: function(timestamp) {
+
+    //rerenders triggered by scene changes (animations, etc) as opposed to mbx render events
+    sceneRerender: function(){
+        
+        if (this.needsRerender) {
+            this.update();
+            this.needsRerender = false
+        }
+
+        var self = this;
+        requestAnimationFrame(function(now){self.sceneRerender(now, true)})
+    },
+
+    update: function(timestamp, triggeredByScene) {
+        // console.log(this)
         // Update any animations
-        //this.animationManager.update(timestamp);
+        this.animationManager.update(timestamp);
+        
 
-        // Render the scene
+        this.renderer.state.reset();
+
+        // Render the scene and repaint the map
         this.renderer.render( this.scene, this.camera );
+        if (triggeredByScene) this.map.triggerRepaint();
 
-        // Run this again next frame
-        var thisthis = this;
-        requestAnimationFrame(function(timestamp) { thisthis.update(timestamp); } );
     },
 
     projectToWorld: function (coords){
+
         // Spherical mercator forward projection, re-scaling to WORLD_SIZE
         var projected = [
             -ThreeboxConstants.MERCATOR_A * coords[0] * ThreeboxConstants.DEG2RAD * ThreeboxConstants.PROJECTION_WORLD_SIZE,
@@ -71,9 +93,11 @@ Threebox.prototype = {
 
         return result;
     },
+
     projectedUnitsPerMeter: function(latitude) {
         return Math.abs(ThreeboxConstants.WORLD_SIZE * (1 / Math.cos(latitude*Math.PI/180))/ThreeboxConstants.EARTH_CIRCUMFERENCE);
     },
+
     _scaleVerticesToMeters: function(centerLatLng, vertices) {
         var pixelsPerMeter = this.projectedUnitsPerMeter(centerLatLng[1]);
         var centerProjected = this.projectToWorld(centerLatLng);
@@ -84,12 +108,15 @@ Threebox.prototype = {
 
         return vertices;
     },
+
     projectToScreen: function(coords) {
         console.log("WARNING: Projecting to screen coordinates is not yet implemented");
     },
+
     unprojectFromScreen: function (pixel) {
         console.log("WARNING: unproject is not yet implemented");
     },
+
     unprojectFromWorld: function (pixel) {
 
         var unprojected = [
@@ -111,15 +138,17 @@ Threebox.prototype = {
     },
 
     addAtCoordinate: function(obj, lnglat, options) {
+        
         var geoGroup = new THREE.Group();
         geoGroup.userData.isGeoGroup = true;
         geoGroup.add(obj);
+
         this._flipMaterialSides(obj);
         this.world.add(geoGroup);
         this.moveToCoordinate(obj, lnglat, options);
-        
+
         // Bestow this mesh with animation superpowers and keeps track of its movements in the global animation queue
-        //this.animationManager.enroll(obj); 
+        this.animationManager.enroll(obj); 
 
         return obj;
     },
@@ -161,6 +190,7 @@ Threebox.prototype = {
         geoGroup.position.copy(this.projectToWorld(lnglat));
         obj.coordinates = lnglat;
 
+        this.needsRerender = true;
         return obj;
     },
 
@@ -173,9 +203,10 @@ Threebox.prototype = {
 
     addSymbolLayer: function(options) {
         const layer = new SymbolLayer3D(this, options);
-        this.layers.push(layer);
+        // console.log(layer)
+        //this.layers.push(layer);
 
-        return layer;
+        //return layer;
     },
 
     getDataLayer: function(id) {
