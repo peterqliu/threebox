@@ -66,6 +66,7 @@ Threebox.prototype = {
     },
 
     update: function(triggeredByMap) {
+        
         var timestamp = Date.now();
 
         // Update any animations

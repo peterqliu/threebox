@@ -2,12 +2,12 @@
 
 A three.js plugin for Mapbox GL JS, using the custom layer feature. Provides convenient methods to manage objects in lnglat coordinates, and to synchronize the map and scene cameras.
 
-## Compatibility/Dependencies
+### Compatibility/Dependencies
 
 - Mapbox v.0.50.0 and later (for custom layer support), barring breaking changes later
 - Three.r94 (already bundled into the Threebox build)
 
-## Installation
+### Installation
 
 Add it to your project via `npm`:
 
@@ -15,14 +15,12 @@ Add it to your project via `npm`:
 
 or download the bundle from [`dist/threebox.js`](dist/threebox.js) and add include it in a `<script>` tag on your page.
 
-## Documentation
+### Documentation
 
-### [`Threebox`](docs/Threebox.md)
-
-Set up and handle the core translations between a Three.js scene graph and the Mapbox GL JS map.
+#### [`Threebox`](docs/Threebox.md)
 
 
-## Building
+### Building
 
 `npm run build`
 
