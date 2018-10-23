@@ -177,7 +177,7 @@ SymbolLayer3D.prototype = {
                 } );
 
             }})(m);
-            
+
             materialLoader.setPath(this.models[m].directory);
             materialLoader.load(this.models[m].name + ".mtl", loadObject, () => (null), error => {
                 console.warn("No material file found for SymbolLayer3D model " + m);

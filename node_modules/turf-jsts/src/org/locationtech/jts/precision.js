@@ -1,0 +1,10 @@
+// precision
+export { default as CommonBits } from './precision/CommonBits'
+export { default as CommonBitsOp } from './precision/CommonBitsOp'
+export { default as CommonBitsRemover } from './precision/CommonBitsRemover'
+export { default as CoordinatePrecisionReducerFilter } from './precision/CoordinatePrecisionReducerFilter'
+export { default as EnhancedPrecisionOp } from './precision/EnhancedPrecisionOp'
+export { default as GeometryPrecisionReducer } from './precision/GeometryPrecisionReducer'
+export { default as MinimumClearance } from './precision/MinimumClearance'
+export { default as PrecisionReducerCoordinateOperation } from './precision/PrecisionReducerCoordinateOperation'
+export { default as SimpleMinimumClearance } from './precision/SimpleMinimumClearance'

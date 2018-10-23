@@ -1,0 +1,46 @@
+import BoundaryNodeRule from '../../algorithm/BoundaryNodeRule'
+import GeometryGraph from '../../geomgraph/GeometryGraph'
+import RobustLineIntersector from '../../algorithm/RobustLineIntersector'
+
+export default class GeometryGraphOp {
+  constructor () {
+    this._li = new RobustLineIntersector()
+    this._resultPrecisionModel = null
+    this._arg = null
+    if (arguments.length === 1) {
+      const g0 = arguments[0]
+      this.setComputationPrecision(g0.getPrecisionModel())
+      this._arg = new Array(1).fill(null)
+      this._arg[0] = new GeometryGraph(0, g0)
+    } else if (arguments.length === 2) {
+      const g0 = arguments[0]
+      const g1 = arguments[1]
+      const boundaryNodeRule = BoundaryNodeRule.OGC_SFS_BOUNDARY_RULE
+      if (g0.getPrecisionModel().compareTo(g1.getPrecisionModel()) >= 0) this.setComputationPrecision(g0.getPrecisionModel()); else this.setComputationPrecision(g1.getPrecisionModel())
+      this._arg = new Array(2).fill(null)
+      this._arg[0] = new GeometryGraph(0, g0, boundaryNodeRule)
+      this._arg[1] = new GeometryGraph(1, g1, boundaryNodeRule)
+    } else if (arguments.length === 3) {
+      const g0 = arguments[0]
+      const g1 = arguments[1]
+      const boundaryNodeRule = arguments[2]
+      if (g0.getPrecisionModel().compareTo(g1.getPrecisionModel()) >= 0) this.setComputationPrecision(g0.getPrecisionModel()); else this.setComputationPrecision(g1.getPrecisionModel())
+      this._arg = new Array(2).fill(null)
+      this._arg[0] = new GeometryGraph(0, g0, boundaryNodeRule)
+      this._arg[1] = new GeometryGraph(1, g1, boundaryNodeRule)
+    }
+  }
+  getArgGeometry (i) {
+    return this._arg[i].getGeometry()
+  }
+  setComputationPrecision (pm) {
+    this._resultPrecisionModel = pm
+    this._li.setPrecisionModel(this._resultPrecisionModel)
+  }
+  interfaces_ () {
+    return []
+  }
+  getClass () {
+    return GeometryGraphOp
+  }
+}

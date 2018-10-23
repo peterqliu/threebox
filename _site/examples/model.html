@@ -1,0 +1,81 @@
+<!doctype html>
+<head>
+    <title>Threebox Basic Example</title>
+    <script src="../dist/threebox.js" type="text/javascript"></script>
+
+    <script src='https://api.mapbox.com/mapbox-gl-js/v0.50.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v0.50.0/mapbox-gl.css' rel='stylesheet' />
+    <script src="https://cdn.rawgit.com/mrdoob/three.js/master/examples/js/loaders/GLTFLoader.js"></script>
+
+    <style>
+        body, html { 
+            width: 100%;
+            height: 100%;
+            margin: 0;
+        }
+        #map { 
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id='map' class='map'></div>
+
+    <script>
+
+    
+    mapboxgl.accessToken = 'pk.eyJ1IjoicGV0ZXJxbGl1IiwiYSI6ImpvZmV0UEEifQ._D4bRmVcGfJvo1wjuOpA1g';
+    var map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/light-v9',
+      center: [-122.4131, 37.7743],
+      zoom: 15.95,
+      pitch: 60,
+      heading: 41,
+      hash: true
+    });
+
+
+
+
+var THREE = window.THREE;
+
+map.on('style.load', function() {
+
+
+    map.addLayer({
+        id: 'custom_layer',
+        type: 'custom',
+        onAdd: function(map, gl){
+            onAdd(map, gl)
+        },
+        render: function(gl, matrix){
+            threebox.update();
+        }
+    });
+});
+
+
+function onAdd(map, mbxContext) {
+
+    window.threebox = new Threebox(map, mbxContext);
+    threebox.setupDefaultLights();
+
+
+    var loader = new THREE.GLTFLoader();
+    loader.load('models/34M_17.gltf', (function (gltf) {
+        console.log(gltf.scene)
+        threebox.addAtCoordinate(
+            gltf.scene, 
+            [-122.4340, 37.7353, 0], 
+            {preScale: 100}
+        );
+
+    }).bind(this));
+
+    
+}
+
+    </script>
+</body>
