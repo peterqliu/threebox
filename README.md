@@ -17,7 +17,7 @@ or download the bundle from [`dist/threebox.js`](dist/threebox.js) and add inclu
 
 ## Documentation
 
-### [`Threebox`](/docs/Threebox.md)
+### [`Threebox`](docs/Threebox.md)
 
 Set up and handle the core translations between a Three.js scene graph and the Mapbox GL JS map.
 

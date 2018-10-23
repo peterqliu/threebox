@@ -1,6 +1,6 @@
 ## `Threebox`
 
-Set up and handle the core translations between a Three.js scene graph and the Mapbox GL JS map.
+Set up and handle the core translations between a Three.js scenegraph and the Mapbox GL JS map.
 
 ### Examples
 
@@ -8,7 +8,7 @@ Set up and handle the core translations between a Three.js scene graph and the M
 
 ### `var threebox = new Threebox(map);`
 
-Instantiates a threebox canvas atop the Mapbox GL JS canvas object in `map`. Automatically sets up a new canvas DOM element for Three.js and synchronizes the camera movement and events between Three.js and Mapbox GL JS.
+Instantiates a threebox scene. Automatically synchronizes the camera movement and events between Three.js and Mapbox GL JS.
 
 ### `threebox.setupDefaultLights();`
 
