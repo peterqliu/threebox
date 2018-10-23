@@ -1,13 +1,12 @@
-const THREE = require("../three64.js");    // Modified version to use 64-bit double precision floats for matrix math
+const THREE = require("../three94.js");    // Modified version to use 64-bit double precision floats for matrix math
 const ThreeboxConstants = require("../constants.js");
 const utils = require("../Utils/Utils.js");
 const ValueGenerator = require("../Utils/ValueGenerator.js");
 const OBJLoader = require("../Loaders/OBJLoader.js");
 const MTLLoader = require("../Loaders/MTLLoader.js");
 
-console.log(THREE);
-
 function SymbolLayer3D(parent, options) {
+
     if(options === undefined) return console.error("Invalid options provided to SymbolLayer3D");
     // TODO: Better error handling here
 
@@ -59,10 +58,13 @@ function SymbolLayer3D(parent, options) {
 }
 
 SymbolLayer3D.prototype = {
+
     updateSourceData: function(source, absolute) {
+
         var oldFeatures = {}
 
         if (!source.features) return console.error("updateSourceData expects a GeoJSON FeatureCollection with a 'features' property");
+        
         source.features.forEach((feature, i) => {
             const key = this.keyGen(feature,i); // TODO: error handling
             if (key in this.features) {
@@ -97,10 +99,12 @@ SymbolLayer3D.prototype = {
         this.source = source;
 
     },
+
     removeFeature: function(key) {
         this.parent.remove(this.features[key].rawObject);
         delete this.features[key];
     },
+
     _initialize: function() {
         var modelNames = [];
 
@@ -109,6 +113,7 @@ SymbolLayer3D.prototype = {
             return console.error("Invalid model name definition provided to SymbolLayer3D");
         if(!this.modelDirectoryGen)
             return console.error("Invalid model directory definition provided to SymbolLayer3D");
+
 
         // Add features to a map
         this.source.features.forEach((f,i) => {
@@ -128,6 +133,7 @@ SymbolLayer3D.prototype = {
         // Filter out only unique models
         modelNames.forEach(m => this.models[(m.directory + m.name)] = { directory: m.directory, name: m.name, loaded: false });
 
+        
         // And load models asynchronously
         var remaining = Object.keys(this.models).length;
         console.log("Loading " + remaining + " models", this.models);

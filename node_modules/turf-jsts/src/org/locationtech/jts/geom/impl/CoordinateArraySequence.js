@@ -1,0 +1,152 @@
+import StringBuffer from '../../../../../java/lang/StringBuffer'
+import hasInterface from '../../../../../hasInterface'
+import Coordinate from '../Coordinate'
+import IllegalArgumentException from '../../../../../java/lang/IllegalArgumentException'
+import Double from '../../../../../java/lang/Double'
+import CoordinateSequence from '../CoordinateSequence'
+import Serializable from '../../../../../java/io/Serializable'
+
+export default class CoordinateArraySequence {
+  constructor () {
+    this._dimension = 3
+    this._coordinates = null
+    if (arguments.length === 1) {
+      if (arguments[0] instanceof Array) {
+        this._coordinates = arguments[0]
+        this._dimension = 3
+      } else if (Number.isInteger(arguments[0])) {
+        const size = arguments[0]
+        this._coordinates = new Array(size).fill(null)
+        for (let i = 0; i < size; i++) {
+          this._coordinates[i] = new Coordinate()
+        }
+      } else if (hasInterface(arguments[0], CoordinateSequence)) {
+        const coordSeq = arguments[0]
+        if (coordSeq === null) {
+          this._coordinates = new Array(0).fill(null)
+          return null
+        }
+        this._dimension = coordSeq.getDimension()
+        this._coordinates = new Array(coordSeq.size()).fill(null)
+        for (let i = 0; i < this._coordinates.length; i++) {
+          this._coordinates[i] = coordSeq.getCoordinateCopy(i)
+        }
+      }
+    } else if (arguments.length === 2) {
+      if (arguments[0] instanceof Array && Number.isInteger(arguments[1])) {
+        const coordinates = arguments[0]
+        const dimension = arguments[1]
+        this._coordinates = coordinates
+        this._dimension = dimension
+        if (coordinates === null) this._coordinates = new Array(0).fill(null)
+      } else if (Number.isInteger(arguments[0]) && Number.isInteger(arguments[1])) {
+        const size = arguments[0]
+        const dimension = arguments[1]
+        this._coordinates = new Array(size).fill(null)
+        this._dimension = dimension
+        for (let i = 0; i < size; i++) {
+          this._coordinates[i] = new Coordinate()
+        }
+      }
+    }
+  }
+  setOrdinate (index, ordinateIndex, value) {
+    switch (ordinateIndex) {
+      case CoordinateSequence.X:
+        this._coordinates[index].x = value
+        break
+      case CoordinateSequence.Y:
+        this._coordinates[index].y = value
+        break
+      case CoordinateSequence.Z:
+        this._coordinates[index].z = value
+        break
+      default:
+        throw new IllegalArgumentException('invalid ordinateIndex')
+    }
+  }
+  size () {
+    return this._coordinates.length
+  }
+  getOrdinate (index, ordinateIndex) {
+    switch (ordinateIndex) {
+      case CoordinateSequence.X:
+        return this._coordinates[index].x
+      case CoordinateSequence.Y:
+        return this._coordinates[index].y
+      case CoordinateSequence.Z:
+        return this._coordinates[index].z
+      default:
+    }
+    return Double.NaN
+  }
+  getCoordinate () {
+    if (arguments.length === 1) {
+      let i = arguments[0]
+      return this._coordinates[i]
+    } else if (arguments.length === 2) {
+      const index = arguments[0]
+      const coord = arguments[1]
+      coord.x = this._coordinates[index].x
+      coord.y = this._coordinates[index].y
+      coord.z = this._coordinates[index].z
+    }
+  }
+  getCoordinateCopy (i) {
+    return new Coordinate(this._coordinates[i])
+  }
+  getDimension () {
+    return this._dimension
+  }
+  getX (index) {
+    return this._coordinates[index].x
+  }
+  clone () {
+    const cloneCoordinates = new Array(this.size()).fill(null)
+    for (let i = 0; i < this._coordinates.length; i++) {
+      cloneCoordinates[i] = this._coordinates[i].clone()
+    }
+    return new CoordinateArraySequence(cloneCoordinates, this._dimension)
+  }
+  expandEnvelope (env) {
+    for (let i = 0; i < this._coordinates.length; i++) {
+      env.expandToInclude(this._coordinates[i])
+    }
+    return env
+  }
+  copy () {
+    const cloneCoordinates = new Array(this.size()).fill(null)
+    for (let i = 0; i < this._coordinates.length; i++) {
+      cloneCoordinates[i] = this._coordinates[i].copy()
+    }
+    return new CoordinateArraySequence(cloneCoordinates, this._dimension)
+  }
+  toString () {
+    if (this._coordinates.length > 0) {
+      const strBuf = new StringBuffer(17 * this._coordinates.length)
+      strBuf.append('(')
+      strBuf.append(this._coordinates[0])
+      for (let i = 1; i < this._coordinates.length; i++) {
+        strBuf.append(', ')
+        strBuf.append(this._coordinates[i])
+      }
+      strBuf.append(')')
+      return strBuf.toString()
+    } else {
+      return '()'
+    }
+  }
+  getY (index) {
+    return this._coordinates[index].y
+  }
+  toCoordinateArray () {
+    return this._coordinates
+  }
+  interfaces_ () {
+    return [CoordinateSequence, Serializable]
+  }
+  getClass () {
+    return CoordinateArraySequence
+  }
+  static get serialVersionUID () { return -915438501601840650 }
+}

@@ -1,0 +1,5 @@
+{
+  // suppresses warnings about the use of expression
+  // where normally you would expect to see assignments or function calls
+  "expr": true
+}

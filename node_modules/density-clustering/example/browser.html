@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head>
+  <title>Clustering</title>
+  <meta charset="utf-8"/>
+</head>
+<body>
+  <script src="../dist/clustering.js"></script>
+  <script>
+  var dbscan = new DBSCAN();
+  var dataset = [
+    [1, 1], [0, 1], [1, 0],
+    [10, 10], [10, 13], [13, 13],
+    [30, 30], [30, 33], [49, 49], [33, 33], [36, 36]
+  ];
+
+  console.log(dbscan.run(dataset, 5, 2));
+  </script>
+</body>
+</html>

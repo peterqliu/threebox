@@ -1,5 +1,6 @@
 var threebox = require('../Threebox.js');
 var turf = require("@turf/turf");
+var utils = require("../Utils/Utils.js");
 
 
 function AnimationManager() {
@@ -8,6 +9,7 @@ function AnimationManager() {
 }
 
 AnimationManager.prototype = {
+
     enroll: function(obj) {
         /* Extend the provided object with animation-specific properties and track in the animation manager */
 
@@ -32,7 +34,7 @@ AnimationManager.prototype = {
                     var c = obj.rotation
                     entry.parameters.startRotation = [c.x, c.y, c.z];
                     entry.parameters.rotationPerMs = [c.x, c.y, c.z].map(function(radian, index){
-                        return (utilities.radify(state.rotation[index])-radian)/(options.duration);
+                        return (utils.radify(state.rotation[index])-radian)/(options.duration);
                     })
                 }
                 if (state.position) {
@@ -51,7 +53,7 @@ AnimationManager.prototype = {
             else {
 
                 this.stop();
-                state.rotation = utilities.radify(state.rotation);
+                state.rotation = utils.radify(state.rotation);
                 this._setObject(state);
 
             }
@@ -92,7 +94,7 @@ AnimationManager.prototype = {
                     speed: options.speed || 10,
                     acceleration:  options.acceleration || 0,
                     trackHeading: true,
-                    turnSpeed: utilities.radify(options.turnSpeed) || utilities.radify(3600)
+                    turnSpeed: utils.radify(options.turnSpeed) || utils.radify(3600)
                 }
             };
 
@@ -126,7 +128,7 @@ AnimationManager.prototype = {
 
             if (p) {
                 this.coordinates = p;
-                var c = utilities.project(p);
+                var c = threebox.projectToWorld(p);
 
                 this.position.set(c[0],c[1], c[2])
 
@@ -223,7 +225,7 @@ AnimationManager.prototype = {
                 // default to duration for time
                 var distanceProgress = options.speed*timeProgress+ 0.5 * acceleration * Math.pow(timeProgress,2);//totalDistance*fractionalProgress
                 var currentLngLat = turf.along(lineGeojson, distanceProgress, 'meters').geometry.coordinates;
-                var nextPosition = utilities.project(currentLngLat);
+                var nextPosition = utils.project(currentLngLat);
 
                 var toTurn;
 
@@ -263,7 +265,7 @@ AnimationManager.prototype = {
                 var radius = options.radius;
                 var center = options.center;
 
-                var angle = utilities.radify((360 * timeProgress / period) );
+                var angle = utils.radify((360 * timeProgress / period) );
                 var destination = turf.destination(center, radius/1000, angle, 'kilometers');
                 var coords = destination.geometry.coordinates;
                 coords[2] = 500;

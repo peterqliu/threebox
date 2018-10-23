@@ -1,0 +1,76 @@
+<!doctype html>
+<head>
+    <title>Add a GLTF object</title>
+    <script src="../dist/threebox.js" type="text/javascript"></script>
+    <script src="config.js"></script>
+
+    <script src='https://api.mapbox.com/mapbox-gl-js/v0.50.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v0.50.0/mapbox-gl.css' rel='stylesheet' />
+    <script src="https://cdn.rawgit.com/mrdoob/three.js/master/examples/js/loaders/GLTFLoader.js"></script>
+
+    <style>
+        body, html { 
+            width: 100%;
+            height: 100%;
+            margin: 0;
+        }
+        #map { 
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id='map' class='map'></div>
+
+    <script>
+
+    
+    if(!config) console.error("Config not set! Make a copy of 'config_template.js', add in your access token, and save the file as 'config.js'.");
+    
+    mapboxgl.accessToken = config.accessToken;
+    var origin = [-122.4340, 37.7353, 0];
+
+    var map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/light-v9',
+        center: origin,
+        zoom: 18,
+        pitch: 60,
+        heading: 41,
+        hash: true
+    });
+
+    map.on('style.load', function() {
+
+
+        map.addLayer({
+            id: 'custom_layer',
+            type: 'custom',
+            onAdd: function(map, mbxContext){
+
+                window.threebox = new Threebox(map, mbxContext);
+                threebox.setupDefaultLights();
+
+                var loader = new THREE.GLTFLoader();
+
+                loader.load('models/34M_17.gltf', (function (gltf) {
+
+                    // rotate object so it's sitting on its base
+                    gltf.scene.rotation.x = -Math.PI*1.5
+
+                    threebox.addAtCoordinate(gltf.scene, origin);
+
+                }).bind(this));
+
+            },
+            render: function(gl, matrix){
+                threebox.update(true);
+
+            }
+        });
+    });
+
+
+    </script>
+</body>

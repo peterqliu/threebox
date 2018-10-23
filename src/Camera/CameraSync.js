@@ -1,4 +1,4 @@
-var THREE = require("../three64.js");
+var THREE = require("../three94.js");
 var Threebox = require('../Threebox.js');
 var utils = require("../Utils/Utils.js");
 var ThreeboxConstants = require("../constants.js");
@@ -17,12 +17,16 @@ function CameraSync(map, camera, world) {
 
     // Listen for move events from the map and update the Three.js camera
     var _this = this;
-    this.map.on('move', function() { _this.updateCamera(); });
+    this.map.on('move', function() {
+        _this.updateCamera()
+    });
     this.updateCamera();
 }
 
 CameraSync.prototype = {
+
     updateCamera: function(ev) {
+
         if(!this.camera) {
             console.log('nocamera')
             return;
@@ -66,10 +70,18 @@ CameraSync.prototype = {
         var translateMap = new THREE.Matrix4;
         var rotateMap = new THREE.Matrix4;
 
-        scale.makeScale(zoomPow, zoomPow , zoomPow );
-        translateCenter.makeTranslation(ThreeboxConstants.WORLD_SIZE/2, -ThreeboxConstants.WORLD_SIZE / 2, 0);
-        translateMap.makeTranslation(-this.map.transform.x, this.map.transform.y , 0);
-        rotateMap.makeRotationZ(Math.PI);
+        scale
+            .makeScale(zoomPow, zoomPow , zoomPow );
+        
+        translateCenter
+            .makeTranslation(ThreeboxConstants.WORLD_SIZE/2, -ThreeboxConstants.WORLD_SIZE / 2, 0);
+        
+        translateMap
+            .makeTranslation(-this.map.transform.x, this.map.transform.y , 0);
+        
+        rotateMap
+            .makeRotationZ(Math.PI);
+
         this.world.matrix = new THREE.Matrix4;
         this.world.matrix
             .premultiply(rotateMap)
@@ -77,6 +89,7 @@ CameraSync.prototype = {
             .premultiply(scale)
             .premultiply(translateMap)
 
+        //need to reset renderer to avoid paintprogram error
 
         // utils.prettyPrintMatrix(this.camera.projectionMatrix.elements);
     }

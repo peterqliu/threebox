@@ -1,55 +1,23 @@
-
-
-EDIT 10/15/18 : MapboxGL now supports [custom layers](https://blog.mapbox.com/launching-custom-layers-with-uber-2a235841a125) to bring Three right into the same context! Archiving this repo for now.
-
 # `threebox`
 
-A three.js plugin for Mapbox GL JS, with support for basic animation and advanced 3D rendering.
+A three.js plugin for Mapbox GL JS, using the custom layer feature. Provides convenient methods to manage objects in lnglat coordinates, and to synchronize the map and scene cameras.
+
+### Compatibility/Dependencies
+
+- Mapbox v.0.50.0 and later (for custom layer support), barring breaking changes later
+- Three.r94 (already bundled into the Threebox build)
+
+### Installation
 
 
-## Installation
+Download the bundle from [`dist/threebox.js`](dist/threebox.js) and add include it in a `<script>` tag on your page. Note that the npm package is from an old version, and will not work (update in progress).
 
-Add it to your project via `npm`:
+### Documentation
 
-`npm install threebox`
-
-or download the bundle from [`dist/threebox.js`](dist/threebox.js) and add include it in a `<script>` tag on your page.
-
-## Documentation
-
-### [`Threebox`](/docs/Threebox.md)
-
-Set up and handle the core translations between a Three.js scene graph and the Mapbox GL JS map.
+[Check it out here](docs/Threebox.md)
 
 
-### [`SymbolLayer3D`](/docs/SymbolLayer3D.md)
-
-The `SymbolLayer3D` object lets you load in a GeoJSON `FeatureCollection` of points and will automatically place 3D models at each point.
-
-
-## Features
-### Current
-These features currently have a dedicated interface in `threebox`.
-
-![3D Symbol Layers](docs/img/features-3D-symbols.png)
-
-#### :point_right: [SymbolLayer3D 📝](/docs/SymbolLayer3D.md)
-
-### Planned
-These features should be possible to implement using Three.js today but would benefit from a more geographic/map-specific interface in a future version of `threebox`.
-
-![3D Paths](docs/img/features-3D-paths.png)
-
-![Point Clouds](docs/img/features-point-clouds.png)
-
-![Complex 3D Buildings](docs/img/features-complex-buildings.png)
-
-![GLSL Shaders](docs/img/features-shaders.png)
-
-![3D Terrain](docs/img/features-terrain.png)
-
-
-## Building
+### Building
 
 `npm run build`
 

@@ -4,7 +4,7 @@
  * @author angelxuanchang
  */
 
-const THREE = require('../three64.js');
+const THREE = require('../three94.js');
 
 const MTLLoader = function ( manager ) {
 
