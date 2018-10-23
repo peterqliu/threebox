@@ -43,8 +43,25 @@ map.on('style.load', function() {
     map.addLayer({
         id: 'custom_layer',
         type: 'custom',
-        onAdd: function(map, gl){
-            onAdd(map, gl);
+        onAdd: function(map, mbxContext){
+
+            window.threebox = new Threebox(map, mbxContext);
+            threebox.setupDefaultLights();
+
+
+            // initialize geometry and material of our cube object
+            var geometry = new THREE.BoxGeometry(2000, 2000, 2000);
+
+            var redMaterial = new THREE.MeshPhongMaterial( {color: 0x660000, side: THREE.DoubleSide});
+
+            cube = new THREE.Mesh(geometry, redMaterial);
+            cube.userData.name = "Red cube";
+
+            threebox.addAtCoordinate(
+                cube, 
+                origin, 
+                {preScale: 1}
+            );
         },
         render: function(gl, matrix){
             threebox.update(true);
@@ -52,27 +69,6 @@ map.on('style.load', function() {
     });
 });
 
-
-function onAdd(map, mbxContext) {
-
-    window.threebox = new Threebox(map, mbxContext);
-    threebox.setupDefaultLights();
-
-
-    // initialize geometry and material of our cube object
-    var geometry = new THREE.BoxGeometry(2000, 2000, 2000);
-
-    var redMaterial = new THREE.MeshPhongMaterial( {color: 0x660000, side: THREE.DoubleSide});
-
-    cube = new THREE.Mesh(geometry, redMaterial);
-    cube.userData.name = "Red cube";
-
-    threebox.addAtCoordinate(
-        cube, 
-        origin, 
-        {preScale: 1}
-    );
-}
 
     </script>
 </body>

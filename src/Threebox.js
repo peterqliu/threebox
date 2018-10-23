@@ -7,7 +7,7 @@ var ThreeboxConstants = require("../src/constants.js");
 
 
 function Threebox(map, glContext){
-
+    
     this.map = map;
 
     // Set up a THREE.js scene

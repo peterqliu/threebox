@@ -51,8 +51,30 @@
         map.addLayer({
             id: 'custom_layer',
             type: 'custom',
-            onAdd: function(map, gl){
-                onAdd(map, gl)
+            onAdd: function(map, mbxContext){
+
+                window.threebox = new Threebox(map, mbxContext);
+                threebox.setupDefaultLights();
+
+                var loader = new THREE.GLTFLoader();
+
+                loader.load('models/34M_17.gltf', (function (gltf) {
+
+                    gltf.scene.rotation.x = -Math.PI*1.5
+
+                    threebox.addAtCoordinate(
+                        gltf.scene, 
+                        origin, 
+                        {
+                            rotation:{
+                                x:90
+                            }
+                        }
+
+                    );
+
+                }).bind(this));
+
             },
             render: function(gl, matrix){
                 threebox.update(true);
@@ -61,32 +83,6 @@
         });
     });
 
-
-    function onAdd(map, mbxContext) {
-
-        window.threebox = new Threebox(map, mbxContext);
-        threebox.setupDefaultLights();
-
-        var loader = new THREE.GLTFLoader();
-
-        loader.load('models/34M_17.gltf', (function (gltf) {
-
-            gltf.scene.rotation.x = -Math.PI*1.5
-            threebox.addAtCoordinate(
-                gltf.scene, 
-                origin, 
-                {
-                    rotation:{
-                        x:90
-                    }
-                }
-
-            );
-
-        }).bind(this));
-
-        
-    }
 
     </script>
 </body>
