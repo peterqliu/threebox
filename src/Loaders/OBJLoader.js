@@ -1,7 +1,7 @@
 /**
  * @author mrdoob / http://mrdoob.com/
  */
-const THREE = require('../three64.js');
+const THREE = require('../three94.js');
 
 const OBJLoader = function ( manager ) {
 

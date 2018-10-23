@@ -1,6 +1,6 @@
 var test = require('tape');
 Threebox = require("../src/Threebox.js");
-THREE = require("../src/three64.js");
+THREE = require("../src/three94.js");
 
 window.runTests = function (instance) {
     test('project / unproject', function(t) {
@@ -17,14 +17,14 @@ window.runTests = function (instance) {
         coord = [30,30,0];
         projected = instance.projectToWorld(coord);
         unprojected = instance.unprojectFromWorld(projected);
-        expected = new THREE.Vector3(42.66666666666666,-44.76149152845563,0);
+        expected = new THREE.Vector3(-42.66666666666666,-44.76149152845563,0);
         vector3Equals(t, projected, expected);
         vector3Equals(t, new THREE.Vector3(unprojected), new THREE.Vector3(expected));
 
         coord = [30,-30,0];
         projected = instance.projectToWorld(coord);
         unprojected = instance.unprojectFromWorld(projected);
-        expected = new THREE.Vector3(42.66666666666666,44.76149152845563,0);
+        expected = new THREE.Vector3(-42.66666666666666,44.76149152845563,0);
         vector3Equals(t, projected, expected);
         vector3Equals(t, new THREE.Vector3(unprojected), new THREE.Vector3(expected));
 
@@ -51,14 +51,14 @@ window.runTests = function (instance) {
         coord = [180,0,0];
         projected = instance.projectToWorld(coord);
         unprojected = instance.unprojectFromWorld(projected);
-        expected = new THREE.Vector3(256,0,0);
+        expected = new THREE.Vector3(-255.99999999999997,9.046911093940669e-15,0);
         vector3Equals(t, projected, expected);
         vector3Equals(t, new THREE.Vector3(unprojected), new THREE.Vector3(expected));
 
         coord = [-180,0,0];
         projected = instance.projectToWorld(coord);
         unprojected = instance.unprojectFromWorld(projected);
-        expected = new THREE.Vector3(-256,0,0);
+        expected = new THREE.Vector3(255.99999999999997,9.046911093940669e-15,0);
         vector3Equals(t, projected, expected);
         vector3Equals(t, new THREE.Vector3(unprojected), new THREE.Vector3(expected));
 
@@ -88,7 +88,7 @@ window.runTests = function (instance) {
         coord = [300,0,0];
         projected = instance.projectToWorld(coord);
         unprojected = instance.unprojectFromWorld(projected);
-        expected = new THREE.Vector3(426.66666666666663,0,0);
+        expected = new THREE.Vector3(-426.66666666666663,9.046911093940669e-15,0);
         vector3Equals(t, projected, expected);
         vector3Equals(t, new THREE.Vector3(unprojected), new THREE.Vector3(expected));
 
@@ -140,10 +140,10 @@ function vector3Equals(t, input, expected, allowableError, epsilon) {
     if (dZ < epsilon) dZ = 0;
 
     if(dX > allowableError || dY > allowableError || dZ > allowableError) {
-        t.fail("Vector3 Equivalance failed: (" +  input.x + ", " + input.y + ", " + input.z + ") expected: (" +  expected.x + ", " + expected.y + ", " + expected.z + ")");
+        t.fail("Vector3 Equivalence failed: (" +  input.x + ", " + input.y + ", " + input.z + ") expected: (" +  expected.x + ", " + expected.y + ", " + expected.z + ")");
         console.log(dY);
     }
-    t.pass("ok Vector3 equivalance");
+    t.pass("ok Vector3 equivalence");
 }
 
 

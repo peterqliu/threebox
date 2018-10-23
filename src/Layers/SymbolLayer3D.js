@@ -60,7 +60,9 @@ function SymbolLayer3D(parent, options) {
 }
 
 SymbolLayer3D.prototype = {
+
     updateSourceData: function(source, absolute) {
+        
         var oldFeatures = {}
 
         if (!source.features) return console.error("updateSourceData expects a GeoJSON FeatureCollection with a 'features' property");
@@ -99,10 +101,12 @@ SymbolLayer3D.prototype = {
         this.source = source;
 
     },
+
     removeFeature: function(key) {
         this.parent.remove(this.features[key].rawObject);
         delete this.features[key];
     },
+
     _initialize: function() {
         var modelNames = [];
 

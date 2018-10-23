@@ -24,7 +24,6 @@ function Threebox(map, glContext){
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera( 28, window.innerWidth / window.innerHeight, 0.000001, 5000000000);
-    this.camera.needsUpdate = true;
     this.layers = [];
 
     // The CameraSync object will keep the Mapbox and THREE.js camera movements in sync.
@@ -36,33 +35,37 @@ function Threebox(map, glContext){
     this.cameraSynchronizer = new CameraSync(this.map, this.camera, this.world);
 
 
+    //raycaster for mouse events
+
+    this.raycaster = new THREE.Raycaster();
+
 
     this.animationManager = new AnimationManager();
-
-    this.needsRerender = false;
-
-    this.sceneRerender()
 
 
 }
 
 Threebox.prototype = {
 
+    queryRenderedFeatures: function(point){
 
-    //rerenders triggered by scene changes (animations, etc) as opposed to mbx render events
-    sceneRerender: function(){
+         var mouse = new THREE.Vector2();
         
-        if (this.needsRerender) {
-            this.update();
-            this.needsRerender = false
-        }
+        // // scale mouse pixel position to a percentage of the screen's width and height
+        mouse.x = ( point.x / this.map.transform.width ) * 2 - 1;
+        mouse.y = -( ( point.y) / this.map.transform.height ) * 2 + 1;
 
-        var self = this;
-        requestAnimationFrame(function(now){self.sceneRerender(now, true)})
+        this.raycaster.setFromCamera(mouse, this.camera);
+
+        // calculate objects intersecting the picking ray
+        var intersects = this.raycaster.intersectObjects(this.world.children, true);
+
+        return intersects
     },
 
-    update: function(timestamp, triggeredByScene) {
-        // console.log(this)
+    update: function(triggeredByMap) {
+        var timestamp = Date.now();
+
         // Update any animations
         this.animationManager.update(timestamp);
         
@@ -71,7 +74,12 @@ Threebox.prototype = {
 
         // Render the scene and repaint the map
         this.renderer.render( this.scene, this.camera );
-        if (triggeredByScene) this.map.triggerRepaint();
+
+        if (!triggeredByMap) this.map.triggerRepaint()
+
+        // var self = this;
+
+        // requestAnimationFrame(function(ts){self.update(ts, true)})
 
     },
 
@@ -150,9 +158,14 @@ Threebox.prototype = {
         // Bestow this mesh with animation superpowers and keeps track of its movements in the global animation queue
         this.animationManager.enroll(obj); 
 
+        this.update();
+
         return obj;
     },
     moveToCoordinate: function(obj, lnglat, options) {
+
+        this.update();
+
         /** Place the given object on the map, centered around the provided longitude and latitude
             The object's internal coordinates are assumed to be in meter-offset format, meaning
             1 unit represents 1 meter distance away from the provided coordinate.
@@ -190,7 +203,6 @@ Threebox.prototype = {
         geoGroup.position.copy(this.projectToWorld(lnglat));
         obj.coordinates = lnglat;
 
-        this.needsRerender = true;
         return obj;
     },
 

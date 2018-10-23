@@ -1,6 +1,6 @@
 <!doctype html>
 <head>
-    <title>Threebox example</title>
+    <title>Threebox raycast example</title>
     <script src="../dist/threebox.js" type="text/javascript"></script>
     <script src="config.js"></script>
 
@@ -25,64 +25,84 @@
     if(!config) console.error("Config not set! Make a copy of 'config_template.js', add in your access token, and save the file as 'config.js'.");
     
     mapboxgl.accessToken = config.accessToken;
-    
+    var origin = [-122.4340, 37.7353, 1000];
+
     var map = new mapboxgl.Map({
       container: 'map',
-      style: 'mapbox://styles/mapbox/streets-v9',
-      center: [-122.8170, 37.7894],
-      zoom: 8.55,
+      style: 'mapbox://styles/mapbox/light-v9',
+      center: origin,
+      zoom: 15.95,
       pitch: 60,
       heading: 41,
       hash: true
     });
 
+
+map.on('style.load', function() {
+
+    map.addLayer({
+        id: 'custom_layer',
+        type: 'custom',
+        onAdd: function(map, gl){
+            onAdd(map, gl);
+        },
+        render: function(gl, matrix){
+            threebox.update(true);
+        }
+    });
+});
+
+
+function onAdd(map, mbxContext) {
+
+    window.threebox = new Threebox(map, mbxContext);
+    threebox.setupDefaultLights();
+
+    // initialize geometry and material of our cube object
+    var geometry = new THREE.BoxGeometry(2000, 2000, 2000);
+
+    var redMaterial = new THREE.MeshPhongMaterial( {color: 0x660000, side: THREE.DoubleSide});
+    var greenMaterial = new THREE.MeshPhongMaterial( {color: 0xaaffaa, side: THREE.DoubleSide});
+
+
+    cube = new THREE.Mesh(geometry, redMaterial);
+    cube.userData.name = "Red cube";
+
+    threebox.addAtCoordinate(
+        cube, 
+        origin, 
+        {preScale: 1}
+    );
+    
     var highlighted = [];
 
-    map.on("load", function() {
-        // Initialize threebox
-        window.threebox = new Threebox(map);
-        threebox.setupDefaultLights();
 
-        // // initialize geometry and material of our cube object
-        var geometry = new THREE.BoxGeometry(2000, 2000, 2000);
-        var greenMaterial = new THREE.MeshPhongMaterial( {color: 0xaaffaa, side: THREE.DoubleSide});
-        var redMaterial = new THREE.MeshPhongMaterial( {color: 0xffaaaa, side: THREE.DoubleSide});
+    //add mousing interactions
+    map.on('mousemove', function(e){
 
-        cube = new THREE.Mesh(geometry, redMaterial);
-        cube.userData.name = "Red cube";
-        threebox.addAtCoordinate(cube, [-122.4340, 37.7353, 2500], {preScale: 1});
-        console.log('browser:', THREE.REVISION)
-        
+        // Clear old objects
+        highlighted.forEach(function(h) {
+            h.material = redMaterial;
+        });
+        highlighted.length = 0;
 
-        return
-        //add mousing interactions
-        map.on('mousemove', function(e){
 
-            raycaster = new THREE.Raycaster();
-            var mouse = new THREE.Vector2();
+        // calculate objects intersecting the picking ray
+        var intersects = threebox.queryRenderedFeatures(e.point)
 
-            // Clear old objects
-            highlighted.forEach(function(h) {
-                h.material = redMaterial;
-            });
-            highlighted.length = 0;
+        // if intersect exists, highlight it
+        if (intersects[0]) {
 
-            // scale mouse pixel position to a percentage of the screen's width and height
-            mouse.x = ( e.point.x / threebox.map.transform.width ) * 2 - 1;
-            mouse.y = -( ( e.point.y) / threebox.map.transform.height ) * 2 + 1;
-
-            raycaster.setFromCamera(mouse, threebox.camera);
-
-            // calculate objects intersecting the picking ray
-            var intersects = raycaster.intersectObjects(threebox.world.children, true);
-            if (!intersects[0]) return
             var nearestObject = intersects[0].object;
             nearestObject.material = greenMaterial;
             highlighted.push(nearestObject)
-            
-        });
 
+            //trigger repaint to rerender map
+            threebox.update();
+        }
     });
+
+}
 
     </script>
 </body>

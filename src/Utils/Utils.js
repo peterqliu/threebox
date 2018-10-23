@@ -1,4 +1,4 @@
-var THREE = require("../three64.js");    // Modified version to use 64-bit double precision floats for matrix math
+var THREE = require("../three94.js");    // Modified version to use 64-bit double precision floats for matrix math
 
 function prettyPrintMatrix(uglymatrix){
     for (var s=0;s<4;s++){

@@ -21,7 +21,6 @@ function CameraSync(map, camera, world) {
         _this.updateCamera()
     });
     this.updateCamera();
-    console.log(this)
 }
 
 CameraSync.prototype = {
