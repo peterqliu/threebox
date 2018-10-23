@@ -215,7 +215,6 @@ Threebox.prototype = {
 
     addSymbolLayer: function(options) {
         const layer = new SymbolLayer3D(this, options);
-        // console.log(layer)
         //this.layers.push(layer);
 
         //return layer;

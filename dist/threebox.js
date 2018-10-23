@@ -395,8 +395,6 @@ const ValueGenerator = require("../Utils/ValueGenerator.js");
 const OBJLoader = require("../Loaders/OBJLoader.js");
 const MTLLoader = require("../Loaders/MTLLoader.js");
 
-console.log(THREE);
-
 function SymbolLayer3D(parent, options) {
 
     if(options === undefined) return console.error("Invalid options provided to SymbolLayer3D");
@@ -452,7 +450,7 @@ function SymbolLayer3D(parent, options) {
 SymbolLayer3D.prototype = {
 
     updateSourceData: function(source, absolute) {
-        
+
         var oldFeatures = {}
 
         if (!source.features) return console.error("updateSourceData expects a GeoJSON FeatureCollection with a 'features' property");
@@ -2121,7 +2119,6 @@ Threebox.prototype = {
 
     addSymbolLayer: function(options) {
         const layer = new SymbolLayer3D(this, options);
-        // console.log(layer)
         //this.layers.push(layer);
 
         //return layer;
