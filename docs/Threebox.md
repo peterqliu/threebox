@@ -6,9 +6,9 @@ Set up and handle the core translations between a Three.js scenegraph and the Ma
 
 - [Basic usage](../examples/basic.html)
 
-### `var threebox = new Threebox(map);`
+### `var threebox = new Threebox(map, mapboxGLContext);`
 
-Instantiates a threebox scene. Automatically synchronizes the camera movement and events between Three.js and Mapbox GL JS.
+Instantiates a threebox scene. Automatically synchronizes the camera movement and events between Three.js and Mapbox GL JS. Typically done in the [custom layer's onAdd function](https://www.mapbox.com/mapbox-gl-js/api/#customlayerinterface), which provides both inputs for this method.
 
 ### `threebox.setupDefaultLights();`
 
