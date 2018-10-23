@@ -1,6 +1,6 @@
 <!doctype html>
 <head>
-    <title>Threebox Basic Example</title>
+    <title>Add a GLTF object</title>
     <script src="../dist/threebox.js" type="text/javascript"></script>
     <script src="config.js"></script>
 
@@ -41,10 +41,6 @@
         hash: true
     });
 
-
-
-    var THREE = window.THREE;
-
     map.on('style.load', function() {
 
 
@@ -60,18 +56,10 @@
 
                 loader.load('models/34M_17.gltf', (function (gltf) {
 
+                    // rotate object so it's sitting on its base
                     gltf.scene.rotation.x = -Math.PI*1.5
 
-                    threebox.addAtCoordinate(
-                        gltf.scene, 
-                        origin, 
-                        {
-                            rotation:{
-                                x:90
-                            }
-                        }
-
-                    );
+                    threebox.addAtCoordinate(gltf.scene, origin);
 
                 }).bind(this));
 

@@ -22,81 +22,81 @@
     <div id='map' class='map'></div>
 
     <script>
-    if(!config) console.error("Config not set! Make a copy of 'config_template.js', add in your access token, and save the file as 'config.js'.");
-    
-    mapboxgl.accessToken = config.accessToken;
-    var origin = [-122.4340, 37.7353, 1000];
+        if(!config) console.error("Config not set! Make a copy of 'config_template.js', add in your access token, and save the file as 'config.js'.");
+        
+        mapboxgl.accessToken = config.accessToken;
+        var origin = [-122.4340, 37.7353, 1000];
 
-    var map = new mapboxgl.Map({
-      container: 'map',
-      style: 'mapbox://styles/mapbox/light-v9',
-      center: origin,
-      zoom: 15.95,
-      pitch: 60,
-      heading: 41,
-      hash: true
-    });
-
-
-map.on('style.load', function() {
-
-    map.addLayer({
-        id: 'custom_layer',
-        type: 'custom',
-        onAdd: function(map, mbxContext){
-
-            window.threebox = new Threebox(map, mbxContext);
-            threebox.setupDefaultLights();
-
-            // initialize geometry and material of our cube object
-            var geometry = new THREE.BoxGeometry(2000, 2000, 2000);
-
-            var redMaterial = new THREE.MeshPhongMaterial( {color: 0x660000, side: THREE.DoubleSide});
-            var greenMaterial = new THREE.MeshPhongMaterial( {color: 0xaaffaa, side: THREE.DoubleSide});
+        var map = new mapboxgl.Map({
+          container: 'map',
+          style: 'mapbox://styles/mapbox/light-v9',
+          center: origin,
+          zoom: 15.95,
+          pitch: 60,
+          heading: 41,
+          hash: true
+        });
 
 
-            cube = new THREE.Mesh(geometry, redMaterial);
-            cube.userData.name = "Red cube";
+        map.on('style.load', function() {
 
-            threebox.addAtCoordinate(
-                cube, 
-                origin, 
-                {preScale: 1}
-            );
-            
-            var highlighted = [];
+            map.addLayer({
+                id: 'custom_layer',
+                type: 'custom',
+                onAdd: function(map, mbxContext){
 
+                    window.threebox = new Threebox(map, mbxContext);
+                    threebox.setupDefaultLights();
 
-            //add mousing interactions
-            map.on('mousemove', function(e){
+                    // initialize geometry and material of our cube object
+                    var geometry = new THREE.BoxGeometry(2000, 2000, 2000);
 
-                // Clear old objects
-                highlighted.forEach(function(h) {
-                    h.material = redMaterial;
-                });
-                highlighted.length = 0;
+                    var redMaterial = new THREE.MeshPhongMaterial( {color: 0x660000, side: THREE.DoubleSide});
+                    var greenMaterial = new THREE.MeshPhongMaterial( {color: 0xaaffaa, side: THREE.DoubleSide});
 
 
-                // calculate objects intersecting the picking ray
-                var intersects = threebox.queryRenderedFeatures(e.point)
+                    cube = new THREE.Mesh(geometry, redMaterial);
+                    cube.userData.name = "Red cube";
 
-                // if intersect exists, highlight it
-                if (intersects[0]) {
+                    threebox.addAtCoordinate(
+                        cube, 
+                        origin, 
+                        {preScale: 1}
+                    );
+                    
+                    var highlighted = [];
 
-                    var nearestObject = intersects[0].object;
-                    nearestObject.material = greenMaterial;
-                    highlighted.push(nearestObject)
 
-                    //trigger repaint to rerender map
-                    threebox.update();
+                    //add mousing interactions
+                    map.on('mousemove', function(e){
+
+                        // Clear old objects
+                        highlighted.forEach(function(h) {
+                            h.material = redMaterial;
+                        });
+                        highlighted.length = 0;
+
+
+                        // calculate objects intersecting the picking ray
+                        var intersects = threebox.queryRenderedFeatures(e.point)
+
+                        // if intersect exists, highlight it
+                        if (intersects[0]) {
+
+                            var nearestObject = intersects[0].object;
+                            nearestObject.material = greenMaterial;
+                            highlighted.push(nearestObject)
+
+                            //trigger repaint to rerender map
+                            threebox.update();
+                        }
+                    });
+                },
+                render: function(gl, matrix){
+                    threebox.update(true);
                 }
             });
-        },
-        render: function(gl, matrix){
-            threebox.update(true);
-        }
-    });
-});
+        });
 
     </script>
 </body>

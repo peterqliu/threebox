@@ -8,46 +8,50 @@ var ThreeboxConstants = require("../src/constants.js");
 
 function Threebox(map, glContext){
 
-    this.map = map;
+    this.init(map, glContext);
 
-    // Set up a THREE.js scene
-    this.renderer = new THREE.WebGLRenderer( { 
-        alpha: true, 
-        antialias: true,
-        canvas: map.getCanvas(),
-        context: glContext
-    } );
-
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.autoClear = false;
-
-
-    this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera( 28, window.innerWidth / window.innerHeight, 0.000001, 5000000000);
-    this.layers = [];
-
-    // The CameraSync object will keep the Mapbox and THREE.js camera movements in sync.
-    // It requires a world group to scale as we zoom in. Rotation is handled in the camera's
-    // projection matrix itself (as is field of view and near/far clipping)
-    // It automatically registers to listen for move events on the map so we don't need to do that here
-    this.world = new THREE.Group();
-    this.scene.add(this.world);
-    this.cameraSynchronizer = new CameraSync(this.map, this.camera, this.world);
-
-
-    //raycaster for mouse events
-
-    this.raycaster = new THREE.Raycaster();
-
-
-    this.animationManager = new AnimationManager();
 }
 
 Threebox.prototype = {
 
+    init: function (map, glContext){
+
+        this.map = map;
+
+        // Set up a THREE.js scene
+        this.renderer = new THREE.WebGLRenderer( { 
+            alpha: true, 
+            antialias: true,
+            canvas: map.getCanvas(),
+            context: glContext
+        } );
+
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.autoClear = false;
+
+
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera( 28, window.innerWidth / window.innerHeight, 0.000001, 5000000000);
+        this.layers = [];
+
+        // The CameraSync object will keep the Mapbox and THREE.js camera movements in sync.
+        // It requires a world group to scale as we zoom in. Rotation is handled in the camera's
+        // projection matrix itself (as is field of view and near/far clipping)
+        // It automatically registers to listen for move events on the map so we don't need to do that here
+        this.world = new THREE.Group();
+        this.scene.add(this.world);
+        this.cameraSynchronizer = new CameraSync(this.map, this.camera, this.world);
+
+
+        //raycaster for mouse events
+
+        this.raycaster = new THREE.Raycaster();
+        this.animationManager = new AnimationManager();
+    },
+
     queryRenderedFeatures: function(point){
 
-         var mouse = new THREE.Vector2();
+        var mouse = new THREE.Vector2();
         
         // // scale mouse pixel position to a percentage of the screen's width and height
         mouse.x = ( point.x / this.map.transform.width ) * 2 - 1;

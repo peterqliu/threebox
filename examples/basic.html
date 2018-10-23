@@ -59,11 +59,7 @@ map.on('style.load', function() {
 
             cube = new THREE.Mesh(geometry, redMaterial);
 
-            threebox.addAtCoordinate(
-                cube, 
-                origin, 
-                {preScale: 1}
-            );
+            threebox.addAtCoordinate(cube, origin);
         },
         
         render: function(gl, matrix){

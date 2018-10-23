@@ -38,47 +38,45 @@
     });
 
 
-map.on('style.load', function() {
+    map.on('style.load', function() {
 
-    map.addLayer({
-        id: 'custom_layer',
-        type: 'custom',
-        onAdd: function(map, mbxContext){
+        map.addLayer({
+            id: 'custom_layer',
+            type: 'custom',
+            onAdd: function(map, mbxContext){
 
-            window.threebox = new Threebox(map, mbxContext);
-            threebox.setupDefaultLights();
+                window.threebox = new Threebox(map, mbxContext);
+                threebox.setupDefaultLights();
 
+                // initialize geometry and material of our cube object
+                var geometry = new THREE.BoxGeometry(2000, 2000, 2000);
 
-            // initialize geometry and material of our cube object
-            var geometry = new THREE.BoxGeometry(2000, 2000, 2000);
+                var redMaterial = new THREE.MeshPhongMaterial( {
+                    color: 0x660000, 
+                    side: THREE.DoubleSide
+                });
 
-            var redMaterial = new THREE.MeshPhongMaterial( {color: 0x660000, side: THREE.DoubleSide});
+                cube = new THREE.Mesh(geometry, redMaterial);
 
-            cube = new THREE.Mesh(geometry, redMaterial);
-            cube.userData.name = "Red cube";
+                threebox.addAtCoordinate(cube, origin);
 
-            threebox.addAtCoordinate(
-                cube, 
-                origin, 
-                {preScale: 1}
-            );
+                // on click of the map, move the cube to that spot
+                map.on('click', function(e){
 
-            // on click of the map, move the cube to that spot
-            map.on('click', function(e){
+                    // convert screen pixels to lnglat, and format it as an array
+                    var lnglat = map.unproject(e.point);
+                    lnglat = [lnglat.lng, lnglat.lat, 1000];
 
-                var lnglat = map.unproject(e.point);
-                lnglat = [lnglat.lng, lnglat.lat, 1000];
+                    threebox.moveToCoordinate(cube, lnglat)
 
-                threebox.moveToCoordinate(cube, lnglat)
-
-            })
-        },
-        
-        render: function(gl, matrix){
-            threebox.update(true);
-        }
+                })
+            },
+            
+            render: function(gl, matrix){
+                threebox.update(true);
+            }
+        });
     });
-});
 
 
     </script>
