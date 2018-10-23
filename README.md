@@ -9,15 +9,12 @@ A three.js plugin for Mapbox GL JS, using the custom layer feature. Provides con
 
 ### Installation
 
-Add it to your project via `npm`:
 
-`npm install threebox`
-
-or download the bundle from [`dist/threebox.js`](dist/threebox.js) and add include it in a `<script>` tag on your page.
+Download the bundle from [`dist/threebox.js`](dist/threebox.js) and add include it in a `<script>` tag on your page. Note that the npm package is from an old version, and will not work (update in progress).
 
 ### Documentation
 
-#### [`Threebox`](docs/Threebox.md)
+[Check it out here](docs/Threebox.md)
 
 
 ### Building
