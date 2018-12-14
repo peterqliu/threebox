@@ -29,7 +29,7 @@
     if(!config) console.error("Config not set! Make a copy of 'config_template.js', add in your access token, and save the file as 'config.js'.");
     
     mapboxgl.accessToken = config.accessToken;
-    var origin = [-122.4340, 37.7353, 0];
+    var origin = [-122.4340, 37.7353];
 
     var map = new mapboxgl.Map({
         container: 'map',
@@ -41,12 +41,27 @@
         hash: true
     });
 
+    var source = {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "properties": {},
+          "geometry": {
+            "type": "Point",
+            "coordinates": origin
+          }
+        }
+      ]
+    }
+
     map.on('style.load', function() {
 
 
         map.addLayer({
             id: 'custom_layer',
             type: 'custom',
+            
             onAdd: function(map, mbxContext){
 
                 window.threebox = new Threebox(map, mbxContext);
@@ -56,18 +71,22 @@
 
                 loader.load('models/34M_17.gltf', (function (gltf) {
 
+                    structure = gltf.scene;
+
                     // rotate object so it's sitting on its base
-                    gltf.scene.rotation.x = -Math.PI*1.5
 
-                    threebox.addAtCoordinate(gltf.scene, origin);
+                    structure.scale = 100
+                    structure.rotation.x = Math.PI * 0.5;
+                    threebox.addAtCoordinate(structure, origin);
 
-                }).bind(this));
+                }));
 
             },
-            render: function(gl, matrix){
-                threebox.update(true);
 
+            render: function(gl, matrix){
+                threebox.update();
             }
+
         });
     });
 

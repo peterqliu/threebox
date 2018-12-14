@@ -29,7 +29,7 @@
 
         var map = new mapboxgl.Map({
           container: 'map',
-          style: 'mapbox://styles/mapbox/light-v9',
+          style: 'mapbox://styles/mapbox/dark-v9',
           center: origin,
           zoom: 15.95,
           pitch: 60,
@@ -37,7 +37,7 @@
           hash: true
         });
 
-
+        var active = false
         map.on('style.load', function() {
 
             map.addLayer({
@@ -51,8 +51,14 @@
                     // initialize geometry and material of our cube object
                     var geometry = new THREE.BoxGeometry(2000, 2000, 2000);
 
-                    var redMaterial = new THREE.MeshPhongMaterial( {color: 0x660000, side: THREE.DoubleSide});
-                    var greenMaterial = new THREE.MeshPhongMaterial( {color: 0xaaffaa, side: THREE.DoubleSide});
+                    var redMaterial = new THREE.MeshPhongMaterial( {
+                        color: 0x660000, 
+                        side: THREE.DoubleSide
+                    });
+                    var greenMaterial = new THREE.MeshPhongMaterial( {
+                        color: 0xaaffaa, 
+                        side: THREE.DoubleSide
+                    });
 
 
                     cube = new THREE.Mesh(geometry, redMaterial);
@@ -66,7 +72,6 @@
                     
                     var highlighted = [];
 
-
                     //add mousing interactions
                     map.on('mousemove', function(e){
 
@@ -78,22 +83,28 @@
 
 
                         // calculate objects intersecting the picking ray
-                        var intersects = threebox.queryRenderedFeatures(e.point)
+                        var intersect = threebox.queryRenderedFeatures(e.point)[0]
+                        var intersectionExists = typeof intersect == "object"
 
                         // if intersect exists, highlight it
-                        if (intersects[0]) {
+                        if (intersect) {
 
-                            var nearestObject = intersects[0].object;
+                            var nearestObject = intersect.object;
                             nearestObject.material = greenMaterial;
                             highlighted.push(nearestObject)
 
-                            //trigger repaint to rerender map
-                            threebox.update();
+                        }
+
+                        // on state change, fire a repaint
+                        if (active !== intersectionExists) {
+                            active = intersectionExists;
+                            threebox.repaint();
                         }
                     });
                 },
+
                 render: function(gl, matrix){
-                    threebox.update(true);
+                    threebox.update();
                 }
             });
         });

@@ -3,7 +3,9 @@ var turf = require("@turf/turf");
 var utils = require("../Utils/Utils.js");
 
 
-function AnimationManager() {
+function AnimationManager(map) {
+
+    this.map = map
     this.enrolledObjects = [];    
     this.previousFrameTime;
 }
@@ -19,6 +21,7 @@ AnimationManager.prototype = {
         obj.animationQueue = [];
 
         obj.set = function(state, options) {
+
             //if duration is set, animate to the new state
             if ( options && options.duration > 0 ){
                 var entry = {
@@ -80,23 +83,29 @@ AnimationManager.prototype = {
 
         obj.followPath = function (coordinates, options){
 
-            //var easing = options.easing || 1;
+            var path = utils.lnglatsToWorld(coordinates)
 
-            //var totalDuration = (totalDistance / lineGeojson.properties.speed) * 1000;
+            path = new THREE.CatmullRomCurve3(path);
 
             var lineGeojson = turf.lineString(coordinates);
+
+            options = options || {};
+
             var entry = {
                 type: 'followPath', 
-                parameters:{
-                    start: now, 
-                    distance: turf.lineDistance(lineGeojson, 'meters'), 
+                parameters: {
+                    start: Date.now(), 
+                    distance: turf.lineDistance(lineGeojson, {units:'meters'}), 
+                    expiration: Date.now()+options.duration,
                     geometry:lineGeojson,
-                    speed: options.speed || 10,
-                    acceleration:  options.acceleration || 0,
-                    trackHeading: true,
-                    turnSpeed: utils.radify(options.turnSpeed) || utils.radify(3600)
+                    path: path
                 }
             };
+
+            // apply options or the default value
+            Object.keys(defaults.followPath).forEach(function(key){
+                entry.parameters[key] = options[key] || defaults.followPath[key]
+            })
 
             this.animationQueue
                 .push(entry);
@@ -125,31 +134,36 @@ AnimationManager.prototype = {
 
             var p = options.position;
             var r = options.rotation;
+            var w = options.worldCoordinates;
+
 
             if (p) {
                 this.coordinates = p;
-                var c = threebox.projectToWorld(p);
+                var c = utils.projectToWorld(p);
 
-                this.position.set(c[0],c[1], c[2])
-
-            }
-
-            if (r) {
-
-                this.rotation.set(r[0],r[1],r[2])
+                this.parent.position.copy(c)
 
             }
-        };
+
+            if (r) this.parent.rotation.z = r.z
+            if (w) this.parent.position.copy(w);
+            if (options.quat) this.parent.matrix.copy(options.quat)
+
+            map.repaint = true
+
+        }
 
     },
 
     update: function(now) {
+
         if (this.previousFrameTime === undefined) this.previousFrameTime = now;
 
         var dimensions = ['X','Y','Z'];
 
         //iterate through objects in queue. count in reverse so we can cull objects without frame shifting
         for (var a = this.enrolledObjects.length-1; a>=0; a--){   
+
             var object = this.enrolledObjects[a];
 
             if(!object.animationQueue || object.animationQueue.length === 0) continue;
@@ -159,17 +173,18 @@ AnimationManager.prototype = {
 
             var options = item.parameters;
 
-            // cull expired animations
+            // if an animation is past its expiration date, cull it
             if (options.expiration<now) {
                 console.log('culled')
 
                 object.animationQueue.splice(0,1);
 
                 // set the start time of the next animation
-                object.animationQueue[0].parameters.start = now;
+                if (object.animationQueue[0]) object.animationQueue[0].parameters.start = now;
 
                 return
             }
+
 
             var sinceLastTick = (now-this.previousFrameTime)/1000;
 
@@ -215,46 +230,62 @@ AnimationManager.prototype = {
 
             if (item.type === 'followPath'){
 
-                var timeProgress = (now-options.start) / 1000;
-                var lineGeojson = options.geometry;
-                var acceleration = options.acceleration;
-                var turnSpeed = options.turnSpeed;
+                var timeFrame = Math.min(now - options.start, options.duration-1);
 
-                //var fractionalProgress = Math.pow(1*Math.round(1*(timeProgress)) / totalDuration, easing);
+                var position = options.path.getPointAt(timeFrame/options.duration);
 
-                // default to duration for time
-                var distanceProgress = options.speed*timeProgress+ 0.5 * acceleration * Math.pow(timeProgress,2);//totalDistance*fractionalProgress
-                var currentLngLat = turf.along(lineGeojson, distanceProgress, 'meters').geometry.coordinates;
-                var nextPosition = utils.project(currentLngLat);
+
+                objectState = {worldCoordinates: position};
+                // object.parent.lookAt(options.positions[timeFrame+1])
+
+                // var timeProgress = (now-options.start) / 1000;
+                // var lineGeojson = options.geometry;
+                // var acceleration = options.acceleration;
+                // var turnSpeed = options.turnSpeed;
+
+                // //var fractionalProgress = Math.pow(1*Math.round(1*(timeProgress)) / totalDuration, easing);
+
+                // // default to duration for time
+                // var distanceProgress = (now-options.start) * options.distancePerMs;
+                // var nextLngLat = turf.along(lineGeojson, distanceProgress, {units:'meters'}).geometry.coordinates;
+                // var nextPosition = utils.projectToWorld(nextLngLat);
 
                 var toTurn;
 
                 // if we need to track heading
                 if (options.trackHeading){
-                    //opposite/adjacent
-                    var angle = (Math.atan2((nextPosition[1]-object.position.y),(nextPosition[0]-object.position.x))+0.5*Math.PI).toFixed(4);
-                    var angleDelta = angle-object.rotation.z;
 
-                    // if object needs to turn, turn it by up to the allowed turnSpeed
-                    if (angleDelta !== 0) {
-                        var xTurn = 0;
-                        var yTurn = 0;
-                        var zTurn = Math.sign(angleDelta) * Math.min(Math.abs(angleDelta), turnSpeed) * sinceLastTick;
-                        toTurn = [xTurn, yTurn, object.rotation.z+zTurn];
-                    }
+                    var nextPos = options.path.getPointAt((timeFrame+1)/options.duration);
+                    
+                    var m = new THREE.Matrix4();
+                    m.makeRotationX(Math.PI)
+
+                    // var angle = Math.atan2((nextPosition.y-object.parent.position.y),(nextPosition.x-object.parent.position.x)) + Math.PI/2;
+                    
+                    // var angleDelta = angle-object.rotation.z;
+
+                    // // if object needs to turn, turn it by up to the allowed turnSpeed
+
+                    // if (angleDelta !== 0) {
+                    //     var xTurn = 0;
+                    //     var yTurn = 0;
+                    //     var zTurn = Math.sign(angleDelta) * Math.min(Math.abs(angleDelta), turnSpeed*10000000) * sinceLastTick;
+                    //     // toTurn = [xTurn, yTurn, (object.rotation.z+zTurn)];
+                    //     toTurn = [Math.PI/2, angle, xTurn];
+                    // }
+                    objectState.quat = m;
+                    // objectState.rotation = dir;
 
                 }
 
-                else {
-                    if (options.rotation){
-                        console.log('rotation present!')
-                    }
-                }
+                else if (options.rotation) console.log('rotation present!')
 
-                object._setObject({position: currentLngLat, rotation:toTurn});
+
+                object._setObject(objectState);
 
                 //if finished, flag this for removal next time around
-                if (distanceProgress >= options.distance) options.expiration = now;
+                if (now >= options.expiration) options.expiration = now;
+
 
             }
 
@@ -278,4 +309,11 @@ AnimationManager.prototype = {
     }
 }
 
+const defaults = {
+    followPath: {
+        duration: 1000,
+        trackHeading: true,
+        turnSpeed: utils.radify(3600)   
+    }
+}
 module.exports = exports = AnimationManager;

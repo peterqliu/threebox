@@ -1,10 +1,10 @@
-var THREE = require("./three94.js");
+var THREE = require("./three.js");
 var CameraSync = require("./Camera/CameraSync.js");
 var utils = require("./Utils/Utils.js");
 var AnimationManager = require("./Animation/AnimationManager.js");
 var SymbolLayer3D = require("./Layers/SymbolLayer3D.js");
+var Objects = require("./Layers/objects.js");
 var ThreeboxConstants = require("../src/constants.js");
-
 
 function Threebox(map, glContext){
 
@@ -14,7 +14,12 @@ function Threebox(map, glContext){
 
 Threebox.prototype = {
 
+    repaint: function(){
+        this.map.repaint = true;
+    },
+
     init: function (map, glContext){
+
 
         this.map = map;
 
@@ -31,7 +36,7 @@ Threebox.prototype = {
 
 
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera( 28, window.innerWidth / window.innerHeight, 0.000001, 5000000000);
+        this.camera = new THREE.PerspectiveCamera( 28, window.innerWidth / window.innerHeight, 0.00000000000000001, 5000000000000000);
         this.layers = [];
 
         // The CameraSync object will keep the Mapbox and THREE.js camera movements in sync.
@@ -40,14 +45,33 @@ Threebox.prototype = {
         // It automatically registers to listen for move events on the map so we don't need to do that here
         this.world = new THREE.Group();
         this.scene.add(this.world);
-        this.cameraSynchronizer = new CameraSync(this.map, this.camera, this.world);
 
+        this.cameraSync = new CameraSync(this.map, this.camera, this.world);
+
+        // make useful methods accessible to user
+        for (i in utils.exposedMethods){
+            var method = utils.exposedMethods[i]
+            this[method] = utils[method]
+        }
 
         //raycaster for mouse events
 
         this.raycaster = new THREE.Raycaster();
-        this.animationManager = new AnimationManager();
+
+
+        this.objects = new Objects(this.map, new AnimationManager(this.map));
+        
+        var scope = this;
+        Object.keys(this.objects['__proto__'])
+            // .filter(function(key){return !key.includes('_')})
+            .forEach(function(key){
+                scope[key] = scope.objects['__proto__'][key]
+            })
+        // this.animationManager = new AnimationManager(map);
+
+
     },
+
 
     queryRenderedFeatures: function(point){
 
@@ -65,146 +89,54 @@ Threebox.prototype = {
         return intersects
     },
 
-    update: function(triggeredByMap) {
+    update: function() {
         
+        if (this.map.repaint) this.map.repaint = false
+
         var timestamp = Date.now();
-
         // Update any animations
-        this.animationManager.update(timestamp);
+        this.objects.animationManager.update(timestamp);
         
-
         this.renderer.state.reset();
 
         // Render the scene and repaint the map
         this.renderer.render( this.scene, this.camera );
 
-        if (!triggeredByMap) this.map.triggerRepaint()
-
-        // var self = this;
-
-        // requestAnimationFrame(function(ts){self.update(ts, true)})
+        
 
     },
 
-    projectToWorld: function (coords){
 
-        // Spherical mercator forward projection, re-scaling to WORLD_SIZE
-        var projected = [
-            -ThreeboxConstants.MERCATOR_A * coords[0] * ThreeboxConstants.DEG2RAD * ThreeboxConstants.PROJECTION_WORLD_SIZE,
-            -ThreeboxConstants.MERCATOR_A * Math.log(Math.tan((Math.PI*0.25) + (0.5 * coords[1] * ThreeboxConstants.DEG2RAD))) * ThreeboxConstants.PROJECTION_WORLD_SIZE
-        ];
-     
-        var pixelsPerMeter = this.projectedUnitsPerMeter(coords[1]);
+    add: function(obj, options) {
+        
+        var geoGroup = new THREE.Group();
+        geoGroup.userData.isGeoGroup = true;
+        geoGroup.add(obj);
+        this.animationManager.enroll(obj); 
+        this.world.add(geoGroup);
 
-        //z dimension
-        var height = coords[2] || 0;
-        projected.push( height * pixelsPerMeter );
 
-        var result = new THREE.Vector3(projected[0], projected[1], projected[2]);
-
-        return result;
-    },
-
-    projectedUnitsPerMeter: function(latitude) {
-        return Math.abs(ThreeboxConstants.WORLD_SIZE * (1 / Math.cos(latitude*Math.PI/180))/ThreeboxConstants.EARTH_CIRCUMFERENCE);
-    },
-
-    _scaleVerticesToMeters: function(centerLatLng, vertices) {
-        var pixelsPerMeter = this.projectedUnitsPerMeter(centerLatLng[1]);
-        var centerProjected = this.projectToWorld(centerLatLng);
-
-        for (var i = 0; i < vertices.length; i++) {
-            vertices[i].multiplyScalar(pixelsPerMeter);
-        }
-
-        return vertices;
-    },
-
-    projectToScreen: function(coords) {
-        console.log("WARNING: Projecting to screen coordinates is not yet implemented");
-    },
-
-    unprojectFromScreen: function (pixel) {
-        console.log("WARNING: unproject is not yet implemented");
-    },
-
-    unprojectFromWorld: function (pixel) {
-
-        var unprojected = [
-            -pixel.x / (ThreeboxConstants.MERCATOR_A * ThreeboxConstants.DEG2RAD * ThreeboxConstants.PROJECTION_WORLD_SIZE),
-            2*(Math.atan(Math.exp(pixel.y/(ThreeboxConstants.PROJECTION_WORLD_SIZE*(-ThreeboxConstants.MERCATOR_A))))-Math.PI/4)/ThreeboxConstants.DEG2RAD
-        ];
-
-        var pixelsPerMeter = this.projectedUnitsPerMeter(unprojected[1]);
-
-        //z dimension
-        var height = pixel.z || 0;
-        unprojected.push( height / pixelsPerMeter );
-
-        return unprojected;
-    },
-
-    _flipMaterialSides: function(obj) {
+        this.moveToCoordinate(obj, obj.coordinates, options);
 
     },
 
     addAtCoordinate: function(obj, lnglat, options) {
         
-        var geoGroup = new THREE.Group();
-        geoGroup.userData.isGeoGroup = true;
-        geoGroup.add(obj);
+        console.warn('addAtCoordinate() has been deprecated. Check out the Threebox Object3D() method instead.')
+        
+        obj = this.Object3D(obj);
 
-        this._flipMaterialSides(obj);
-        this.world.add(geoGroup);
-        this.moveToCoordinate(obj, lnglat, options);
-
-        // Bestow this mesh with animation superpowers and keeps track of its movements in the global animation queue
-        this.animationManager.enroll(obj); 
-
-        this.update();
+        obj.setCoords(lnglat, options)
+            .add();
 
         return obj;
     },
+
     moveToCoordinate: function(obj, lnglat, options) {
 
-        this.update();
+        if (!obj.setCoords) obj = this.Object3D(obj)
 
-        /** Place the given object on the map, centered around the provided longitude and latitude
-            The object's internal coordinates are assumed to be in meter-offset format, meaning
-            1 unit represents 1 meter distance away from the provided coordinate.
-        */
-
-        if (options === undefined) options = {};
-        if(options.preScale === undefined) options.preScale = 1.0;
-        if(options.scaleToLatitude === undefined || obj.userData.scaleToLatitude) options.scaleToLatitude = true;
-
-        obj.userData.scaleToLatitude = options.scaleToLatitude;
-
-        if (typeof options.preScale === 'number') options.preScale = new THREE.Vector3(options.preScale, options.preScale, options.preScale);
-        else if(options.preScale.constructor === Array && options.preScale.length === 3) options.preScale = new THREE.Vector3(options.preScale[0], options.preScale[1], options.preScale[2]);
-        else if(options.preScale.constructor !== THREE.Vector3) {
-            console.warn("Invalid preScale value: number, Array with length 3, or THREE.Vector3 expected. Defaulting to [1,1,1]");
-            options.preScale = new THREE.Vector3(1,1,1);
-        }
-
-        var scale = options.preScale;
-
-        // Figure out if this object is a geoGroup and should be positioned and scaled directly, or if its parent
-        var geoGroup;
-        if (obj.userData.isGeoGroup) geoGroup = obj;
-        else if (obj.parent && obj.parent.userData.isGeoGroup) geoGroup = obj.parent;
-        else return console.error("Cannot set geographic coordinates of object that does not have an associated GeoGroup. Object must be added to scene with 'addAtCoordinate()'.")
-
-        if(options.scaleToLatitude) {
-            // Scale the model so that its units are interpreted as meters at the given latitude
-            var pixelsPerMeter = this.projectedUnitsPerMeter(lnglat[1]);
-            scale.multiplyScalar(pixelsPerMeter);
-        }
-
-        geoGroup.scale.copy(scale);
-
-        geoGroup.position.copy(this.projectToWorld(lnglat));
-        obj.coordinates = lnglat;
+        obj.setCoords(lnglat, options)
 
         return obj;
     },
@@ -218,9 +150,9 @@ Threebox.prototype = {
 
     addSymbolLayer: function(options) {
         const layer = new SymbolLayer3D(this, options);
-        //this.layers.push(layer);
+        this.layers.push(layer);
 
-        //return layer;
+        return layer;
     },
 
     getDataLayer: function(id) {
@@ -240,20 +172,7 @@ Threebox.prototype = {
         sunlight.position.set(0,800,1000);
         sunlight.matrixWorldNeedsUpdate = true;
         this.world.add(sunlight);
-        //this.world.add(sunlight.target);
 
-        // var lights = [];
-        // lights[ 0 ] = new THREE.PointLight( 0x999999, 1, 0 );
-        // lights[ 1 ] = new THREE.PointLight( 0x999999, 1, 0 );
-        // lights[ 2 ] = new THREE.PointLight( 0x999999, 0.2, 0 );
-
-        // lights[ 0 ].position.set( 0, 200, 1000 );
-        // lights[ 1 ].position.set( 100, 200, 1000 );
-        // lights[ 2 ].position.set( -100, -200, 0 );
-
-        // //scene.add( lights[ 0 ] );
-        // this.scene.add( lights[ 1 ] );
-        // this.scene.add( lights[ 2 ] );
         
     }
 }

@@ -1,9 +1,10 @@
-const THREE = require("../three94.js");    // Modified version to use 64-bit double precision floats for matrix math
+const THREE = require("../three.js");    // Modified version to use 64-bit double precision floats for matrix math
 const ThreeboxConstants = require("../constants.js");
 const utils = require("../Utils/Utils.js");
 const ValueGenerator = require("../Utils/ValueGenerator.js");
 const OBJLoader = require("../Loaders/OBJLoader.js");
 const MTLLoader = require("../Loaders/MTLLoader.js");
+var turf = require("@turf/turf");
 
 function SymbolLayer3D(parent, options) {
 
@@ -22,10 +23,8 @@ function SymbolLayer3D(parent, options) {
 
     this.id = options.id;
     this.keyGen = ValueGenerator(options.key);
-    if (typeof options.source === "string")
-        this.sourcePath = options.source;
-    else
-        this.source = options.source;
+    if (typeof options.source === "string") this.sourcePath = options.source;
+    else this.source = options.source;
 
     this.modelDirectoryGen = ValueGenerator(options.modelDirectory);
     this.modelNameGen = ValueGenerator(options.modelName);
@@ -38,6 +37,7 @@ function SymbolLayer3D(parent, options) {
     this.loaded = false;
 
     if(this.sourcePath) {
+
         // Load source and models
         const sourceLoader = new THREE.FileLoader();
 
@@ -51,10 +51,11 @@ function SymbolLayer3D(parent, options) {
         }, () => (null), error => {
             return console.error("Could not load SymbolLayer3D source file.")
         });
+        
     }
-    else {
-        this._initialize();
-    }
+
+    else this._initialize();
+
 }
 
 SymbolLayer3D.prototype = {
@@ -87,16 +88,16 @@ SymbolLayer3D.prototype = {
 
         this._addOrUpdateFeatures(this.features)
 
-        if(absolute) {
-            // Check for any features that are not have not been updated and remove them from the scene
-            for(key in this.features) {
-                if(!key in oldFeatures) {
-                    this.removeFeature(key);
-                }
-            }
-        }
+        // if(absolute) {
+        //     // Check for any features that are not have not been updated and remove them from the scene
+        //     for (key in this.features) {
+        //         if (!key in oldFeatures) {
+        //             this.removeFeature(key);
+        //         }
+        //     }
+        // }
 
-        this.source = source;
+        // this.source = source;
 
     },
 
@@ -117,6 +118,7 @@ SymbolLayer3D.prototype = {
 
         // Add features to a map
         this.source.features.forEach((f,i) => {
+
             const key = this.keyGen(f,i); // TODO: error handling
             if(this.features[key] !== undefined) console.warn("Features with duplicate key: " + key);
 
@@ -137,9 +139,10 @@ SymbolLayer3D.prototype = {
         // And load models asynchronously
         var remaining = Object.keys(this.models).length;
         console.log("Loading " + remaining + " models", this.models);
+
         const modelComplete = (m) => {
             console.log("Model complete!", m);
-            //if(this.models[m].loaded) 
+
             if(--remaining === 0) {
                 this.loaded = true;
                 this._addOrUpdateFeatures(this.features);
@@ -185,15 +188,21 @@ SymbolLayer3D.prototype = {
             });
         }
     },
+
     _addOrUpdateFeatures: function(features) {
+
         for (key in features) {
+
+
             const f = features[key];
             const position = f.geojson.geometry.coordinates;
             const scale = this.scaleGen(f.geojson);
 
             const rotation = this.rotationGen(f.geojson);
 
+
             var obj;
+
             if (!f.rawObject) {
                 // Need to create a scene graph object and add it to the scene
                 if(f.model && this.models[f.model] && this.models[f.model].obj && this.models[f.model].loaded)
@@ -206,14 +215,41 @@ SymbolLayer3D.prototype = {
                 f.rawObject = obj;
 
                 this.parent.addAtCoordinate(obj, position, {scaleToLatitude: this.scaleWithMapProjection, preScale: scale});
-                //this.features[key] = f;
             }
+
             else {
                 obj = f.rawObject;
                 this.parent.moveToCoordinate(obj, position, {scaleToLatitude: this.scaleWithMapProjection, preScale: scale});
             }
 
-            obj.rotation.copy(rotation);
+            obj.rotation.copy(rotation);    
+
+            // prepare followPath animation
+            var fp = f.geojson.properties.followPath;
+
+            var newTransition = fp && !fp.expires
+            var expiredTransition = fp && fp.expires > Date.now();
+
+            if (newTransition){
+                //if set to animate along path, prep that object
+                f.geojson.properties.followPath.start = Date.now();
+                f.geojson.properties.followPath.expiration = Date.now() + fp.duration;
+                f.geojson.properties.followPath.geometry = fp.path;
+                f.geojson.properties.followPath.distancePerMs = turf.length(fp.path) / fp.duration;
+            
+                var animationEntry = {
+                    type: 'followPath',
+                    parameters: f.geojson.properties.followPath
+                }
+                obj.rotation.copy(rotation);
+
+                obj.animationQueue.push(animationEntry)
+            }
+
+            else if (expiredTransition) delete f.properties.followPath;
+
+
+
         }
     }
 }

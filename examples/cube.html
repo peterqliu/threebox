@@ -47,8 +47,7 @@ map.on('style.load', function() {
             onAdd(map, gl);
         },
         render: function(gl, matrix){
-            threebox.update(Date.now(), 'mbx');
-
+            threebox.update();
         }
     });
 });
@@ -65,28 +64,14 @@ function onAdd(map, mbxContext) {
 
     var redMaterial = new THREE.MeshPhongMaterial( {color: 0x660000, side: THREE.DoubleSide});
 
-    cube = new THREE.Mesh(geometry, redMaterial);
-    cube.userData.name = "Red cube";
 
-    threebox.addAtCoordinate(
-        cube, 
-        origin, 
-        {preScale: 1}
-    );
-    
+    var cube = new THREE.Mesh(geometry, redMaterial);
 
+    var cubeObj = threebox.objects.Object3D(cube);
 
-
-    function budge(){
-
-        origin[0]+=0.001;
-        threebox.moveToCoordinate(cube, origin)
-
-        requestAnimationFrame(budge)
-    }
-
-    budge()
+    cubeObj
+        .setCoords(origin, {preScale:1})
+        .add()
 }
-
     </script>
 </body>

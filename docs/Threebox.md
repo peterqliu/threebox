@@ -1,11 +1,33 @@
 # Docs
 
-Set up and handle the core translations between a Three.js scenegraph and the Mapbox GL JS map. 
 
-For users of earlier Threebox versions, this is a major refactor with breaking changes, but also significant performance gains.
+## Background
+
+Threebox works by adding a Three.js scene to Mapbox GL, via a custom layer. The custom layer API is fairly primitive still, and Threebox tackles several hurdles to getting Three and Mapbox to work together. 
 
 
-##Setup
+### Camera
+
+The Threebox camera is a `THREE.PerspectiveCamera()`, wired to synchronize with the MapboxGL camera. On every `move` event of the latter, Threebox retrieves the transform matrix (`map.transform`) to apply to its own camera, to match pitch and bearing.
+
+
+### Coordinate system
+
+The Threebox scene consists of a single `THREE.Group()` "World", which holds everything to be added to the map. Threebox handles zoom and panning not in the camera, but instead by scaling and translating this group. When the map zooms out, World and all its contents would scale down accordingly.
+
+
+### Render loop
+
+While Three.js typically renders the scene on a dedicated `requestAnimationFrame` loop, sharing a context with Mapbox GL means it would have to use the latter's render loop to get all layers to render properly.
+
+Mapbox GL emits a `render` event for most visual changes to the map: camera movements, new tiles loading, new data appearing on the map, etc. However, the event is _not_ aware of changes within any custom layer. For Threebox to react properly to both the map and to its own internal scene, it implements two important things:
+
+1) Rerenders the Threebox scene on the Mapbox GL `render` event (`Threebox.update()`). This ensures that the threebox scene gets drawn whenever the rest of the map updates.
+
+2) Triggers a Mapbox GL `render` event whenever its own scene changes: adding, removing, moving, or otherwise updating anything that causes a visual change to the scene. 
+
+
+## Setup
 
 `var threebox = new Threebox(map, mapboxGLContext)`
 

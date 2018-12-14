@@ -48,7 +48,6 @@ map.on('style.load', function() {
             window.threebox = new Threebox(map, mbxContext);
             threebox.setupDefaultLights();
 
-
             // initialize geometry and material of our cube object
             var geometry = new THREE.BoxGeometry(2000, 2000, 2000);
 
@@ -59,11 +58,14 @@ map.on('style.load', function() {
 
             cube = new THREE.Mesh(geometry, redMaterial);
 
-            threebox.addAtCoordinate(cube, origin);
+            cube = threebox.objects.Object3D(cube)
+                .setCoords(origin)
+                .add();
+
         },
         
         render: function(gl, matrix){
-            threebox.update(true);
+            threebox.update();
         }
     });
 });
