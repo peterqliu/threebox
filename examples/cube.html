@@ -58,20 +58,19 @@ function onAdd(map, mbxContext) {
     window.threebox = new Threebox(map, mbxContext);
     threebox.setupDefaultLights();
 
-
     // initialize geometry and material of our cube object
     var geometry = new THREE.BoxGeometry(2000, 2000, 2000);
 
     var redMaterial = new THREE.MeshPhongMaterial( {color: 0x660000, side: THREE.DoubleSide});
 
-
     var cube = new THREE.Mesh(geometry, redMaterial);
 
-    var cubeObj = threebox.objects.Object3D(cube);
+    var cubeObj = threebox.Object3D(cube);
 
     cubeObj
-        .setCoords(origin, {preScale:1})
+        .setCoords(origin)
         .add()
+
 }
     </script>
 </body>

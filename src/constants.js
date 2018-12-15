@@ -8,5 +8,4 @@ module.exports = exports = {
     DEG2RAD: Math.PI / 180,
     RAD2DEG: 180 / Math.PI,
     EARTH_CIRCUMFERENCE: 40075000, // In meters
-
 }

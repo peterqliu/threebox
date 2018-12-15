@@ -45,8 +45,8 @@ map.on('style.load', function() {
         type: 'custom',
         onAdd: function(map, mbxContext){
 
-            window.threebox = new Threebox(map, mbxContext);
-            threebox.setupDefaultLights();
+            window.tb = new Threebox(map, mbxContext);
+            tb.setupDefaultLights();
 
             // initialize geometry and material of our cube object
             var geometry = new THREE.BoxGeometry(2000, 2000, 2000);
@@ -58,14 +58,14 @@ map.on('style.load', function() {
 
             cube = new THREE.Mesh(geometry, redMaterial);
 
-            cube = threebox.objects.Object3D(cube)
+            cube = tb.Object3D(cube)
                 .setCoords(origin)
                 .add();
 
         },
         
         render: function(gl, matrix){
-            threebox.update();
+            tb.update();
         }
     });
 });

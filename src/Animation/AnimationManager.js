@@ -135,7 +135,7 @@ AnimationManager.prototype = {
             var p = options.position;
             var r = options.rotation;
             var w = options.worldCoordinates;
-
+            var q = options.quaternion
 
             if (p) {
                 this.coordinates = p;
@@ -145,9 +145,9 @@ AnimationManager.prototype = {
 
             }
 
-            if (r) this.parent.rotation.z = r.z
+            if (q) this.parent.quaternion.setFromAxisAngle(q[0], q[1])
+            if (r) this.parent.rotation.copy(r)
             if (w) this.parent.position.copy(w);
-            if (options.quat) this.parent.matrix.copy(options.quat)
 
             map.repaint = true
 
@@ -236,19 +236,6 @@ AnimationManager.prototype = {
 
 
                 objectState = {worldCoordinates: position};
-                // object.parent.lookAt(options.positions[timeFrame+1])
-
-                // var timeProgress = (now-options.start) / 1000;
-                // var lineGeojson = options.geometry;
-                // var acceleration = options.acceleration;
-                // var turnSpeed = options.turnSpeed;
-
-                // //var fractionalProgress = Math.pow(1*Math.round(1*(timeProgress)) / totalDuration, easing);
-
-                // // default to duration for time
-                // var distanceProgress = (now-options.start) * options.distancePerMs;
-                // var nextLngLat = turf.along(lineGeojson, distanceProgress, {units:'meters'}).geometry.coordinates;
-                // var nextPosition = utils.projectToWorld(nextLngLat);
 
                 var toTurn;
 
@@ -256,25 +243,15 @@ AnimationManager.prototype = {
                 if (options.trackHeading){
 
                     var nextPos = options.path.getPointAt((timeFrame+1)/options.duration);
-                    
-                    var m = new THREE.Matrix4();
-                    m.makeRotationX(Math.PI)
+                    var tangent = options.path.getTangentAt(timeFrame/options.duration).normalize();
 
-                    // var angle = Math.atan2((nextPosition.y-object.parent.position.y),(nextPosition.x-object.parent.position.x)) + Math.PI/2;
-                    
-                    // var angleDelta = angle-object.rotation.z;
+                    var axis = new THREE.Vector3(0,0,0);
+                    var up = new THREE.Vector3(0,1,0);
+                    axis.crossVectors(up, tangent).normalize();
 
-                    // // if object needs to turn, turn it by up to the allowed turnSpeed
+                    var radians = Math.acos(up.dot(tangent));
 
-                    // if (angleDelta !== 0) {
-                    //     var xTurn = 0;
-                    //     var yTurn = 0;
-                    //     var zTurn = Math.sign(angleDelta) * Math.min(Math.abs(angleDelta), turnSpeed*10000000) * sinceLastTick;
-                    //     // toTurn = [xTurn, yTurn, (object.rotation.z+zTurn)];
-                    //     toTurn = [Math.PI/2, angle, xTurn];
-                    // }
-                    objectState.quat = m;
-                    // objectState.rotation = dir;
+                    objectState.quaternion = [axis, radians];
 
                 }
 

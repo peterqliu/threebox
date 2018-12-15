@@ -59,11 +59,11 @@ Threebox.prototype = {
         this.raycaster = new THREE.Raycaster();
 
 
-        this.objects = new Objects(this.map, new AnimationManager(this.map));
+        this.objects = new Objects(this.map, this.world, new AnimationManager(this.map));
         
         var scope = this;
         Object.keys(this.objects['__proto__'])
-            // .filter(function(key){return !key.includes('_')})
+            .filter(function(key){return !key.includes('_')})
             .forEach(function(key){
                 scope[key] = scope.objects['__proto__'][key]
             })
@@ -102,8 +102,6 @@ Threebox.prototype = {
         // Render the scene and repaint the map
         this.renderer.render( this.scene, this.camera );
 
-        
-
     },
 
 
@@ -134,9 +132,9 @@ Threebox.prototype = {
 
     moveToCoordinate: function(obj, lnglat, options) {
 
-        if (!obj.setCoords) obj = this.Object3D(obj)
+        if (!obj.setCoords) obj = this.Object3D(obj);
 
-        obj.setCoords(lnglat, options)
+        obj.setCoords(lnglat, options);
 
         return obj;
     },
@@ -162,7 +160,13 @@ Threebox.prototype = {
     },
 
     remove: function(obj) {
-        this.world.remove(obj);
+
+        console.warn('remove(obj) has been moved inside the object. Call obj.remove() instead')
+
+        if (!obj.remove) obj = this.Object3D(obj);
+
+        obj.remove();
+        
     },
 
     setupDefaultLights: function() {

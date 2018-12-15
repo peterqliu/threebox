@@ -1,6 +1,6 @@
 var test = require('tape');
 Threebox = require("../src/Threebox.js");
-THREE = require("../src/three94.js");
+THREE = require("../src/three.js");
 
 window.runTests = function (instance) {
     test('project / unproject', function(t) {
