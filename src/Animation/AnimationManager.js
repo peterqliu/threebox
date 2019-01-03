@@ -13,6 +13,7 @@ function AnimationManager(map) {
 AnimationManager.prototype = {
 
     enroll: function(obj) {
+
         /* Extend the provided object with animation-specific properties and track in the animation manager */
 
         this.enrolledObjects.push(obj);
@@ -140,14 +141,13 @@ AnimationManager.prototype = {
             if (p) {
                 this.coordinates = p;
                 var c = utils.projectToWorld(p);
-
-                this.parent.position.copy(c)
-
+                this.position.copy(c)
+                console.log(p)
             }
 
-            if (q) this.parent.quaternion.setFromAxisAngle(q[0], q[1])
-            if (r) this.parent.rotation.copy(r)
-            if (w) this.parent.position.copy(w);
+            if (q) this.quaternion.setFromAxisAngle(q[0], q[1])
+            if (r) this.rotation.copy(r)
+            if (w) this.position.copy(w);
 
             map.repaint = true
 

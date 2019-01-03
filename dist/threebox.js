@@ -21,6 +21,7 @@ function AnimationManager(map) {
 AnimationManager.prototype = {
 
     enroll: function(obj) {
+
         /* Extend the provided object with animation-specific properties and track in the animation manager */
 
         this.enrolledObjects.push(obj);
@@ -148,14 +149,13 @@ AnimationManager.prototype = {
             if (p) {
                 this.coordinates = p;
                 var c = utils.projectToWorld(p);
-
-                this.parent.position.copy(c)
-
+                this.position.copy(c)
+                console.log(p)
             }
 
-            if (q) this.parent.quaternion.setFromAxisAngle(q[0], q[1])
-            if (r) this.parent.rotation.copy(r)
-            if (w) this.parent.position.copy(w);
+            if (q) this.quaternion.setFromAxisAngle(q[0], q[1])
+            if (r) this.rotation.copy(r)
+            if (w) this.position.copy(w);
 
             map.repaint = true
 
@@ -704,6 +704,8 @@ function Objects(map, world, animationManager){
 
 Objects.prototype = {
 
+	self: this,
+
 	sphere: function(obj){
 
 		obj = this.objects._validate(obj, 'sphere');
@@ -712,11 +714,15 @@ Objects.prototype = {
 		var material = new THREE[obj.material]( {color: obj.color} );
 		var mesh = new THREE.Mesh( geometry, material );
 
-		this.objects._addMethods(mesh);
-		return mesh
+        var group = this.objects._makeGroup(mesh);
+        this.objects._addMethods(group);
+
+        return group
 	},
 
 	line: function(obj){
+
+		obj = this.objects._validate(obj, 'line');
 
 		var meterProjectedCoords = utils.lnglatToMeters(obj.geometry);
 		var coords = meterProjectedCoords.coordinates;
@@ -727,19 +733,19 @@ Objects.prototype = {
         		return v3
         	}
         );
+
 		spline = new THREE.CatmullRomCurve3(spline);
 
         var geometry = spline.getPoints()
         geometry = new THREE.BufferGeometry().setFromPoints(geometry)
 
-		// geometry.addAttribute('color', new THREE.Float32BufferAttribute( colorArray, 3 ) );
 
         // var materialType = 'Line'+ obj.material.surface + 'Material';
         var material = new THREE.LineBasicMaterial({ color: 0x0000ff });
         var mesh = new THREE.Line( geometry, material );
 
         mesh.coordinates = meterProjectedCoords.anchor
-        console.log(this)
+
         this.objects._addMethods(mesh);
         mesh.setCoords(mesh.coordinates, {scaleToLatitude:true});
         return mesh  
@@ -747,7 +753,10 @@ Objects.prototype = {
 
 	tube: function(obj){
 
+		obj = this.objects._validate(obj, 'tube');
+
 		var meterProjectedCoords = utils.lnglatToMeters(obj.geometry);
+
 		var coords = meterProjectedCoords.coordinates;
        	
         var spline = coords.map(
@@ -758,11 +767,11 @@ Objects.prototype = {
         );
 
         spline = new THREE.CatmullRomCurve3(spline);
-        var pts = [], count = obj.crossSection.segments;
+        var pts = [], count = obj.segments;
 
         for ( var i = 0; i < count; i ++ ) {
 
-            var l = obj.crossSection.radius;
+            var l = obj.radius;
             var a = 2 * i / count * Math.PI;
             pts.push( new THREE.Vector2 ( Math.cos( a ) * l, Math.sin( a ) * l ) );
 
@@ -777,19 +786,23 @@ Objects.prototype = {
         };
 
         var geometry = new THREE.ExtrudeBufferGeometry( shape, extrudeSettings );
-        var materialType = 'Mesh'+ obj.material.surface + 'Material';
-        var material = new THREE[materialType](obj.material);
+        var material = new THREE[obj.material](obj.material);
 
         var mesh = new THREE.Mesh( geometry, material );
 
-        mesh.coordinates = meterProjectedCoords.anchor;
 
-        this._addMethods(mesh);
+        var group = this.objects._makeGroup(mesh);
+        this.objects._addMethods(group);
+        group.coordinates = meterProjectedCoords.anchor;
 
-        mesh.setCoords(mesh.coordinates, {scaleToLatitude:true});
+        group.setCoords(group.coordinates, {scaleToLatitude:true});
 
-        return mesh
+        return group
              
+	},
+
+	extrusion: function(options){
+
 	},
 
 	loadObj: function(options, cb){
@@ -829,34 +842,34 @@ Objects.prototype = {
             console.warn("No material file found for SymbolLayer3D model " + m);
         });
 
-
         var root = this;
+
         function loadObject(materials) {
 
-            // Closure madness!
             if(materials) {
                 materials.preload();
                 objLoader.setMaterials( materials );
             }
             
-            // console.log("Loading model ", modelName);
-
             objLoader.load(options.model.obj, obj => {
 
-            	obj.rotation.set(options.rotation.x, options.rotation.y, options.rotation.z)
+            	obj.rotation.set(options.rotation.x + Math.PI/2, options.rotation.y, options.rotation.z)
 
-            	root.objects._addMethods(obj);
-                cb(obj);
+		        var group = root.objects._makeGroup(obj);
+		        root.objects._addMethods(group);
+
+                cb(group);
 
             }, () => (null), error => {
-                console.error("Could not load SymbolLayer3D model file.");    
+                console.error("Could not load model file.");    
             } );
 
         };
 	},
 
-	Object3D: function(obj) {
-		obj = this._addMethods(obj);
+	Object3D: function(obj, options) {
+		var group = this.objects._makeGroup(obj);
+		obj = this.objects._addMethods(group);
 		return obj
 	},
 
@@ -866,6 +879,9 @@ Objects.prototype = {
 
 		if (!obj.coordinates) obj.coordinates = [0,0,0];
 
+	     // Bestow this mesh with animation superpowers and keeps track of its movements in the global animation queue
+	    root.animationManager.enroll(obj); 
+		
 		obj.setCoords = function(lnglat, options){
 
 	        /** Place the given object on the map, centered around the provided longitude and latitude
@@ -874,7 +890,7 @@ Objects.prototype = {
 	        */
 
 	        if (obj.userData.anchor) {
-	            console.warn('moveToCoordinate: Only objects with point geometries can be moved with this method. To set this in a new location, add a new object with the new line/polygon coordinates.')
+	            console.warn('setCoords: Only objects with point geometries can be moved with this method. To set this in a new location, add a new object with the new line/polygon coordinates.')
 	            // return;
 	        }
 
@@ -899,29 +915,31 @@ Objects.prototype = {
 	        }	
 
 	        obj.coordinates = lnglat;
-	        var alreadyAdded = obj.parent && obj.parent.userData.isGeoGroup
 
-	        if (alreadyAdded) {
-		        obj.parent.scale.copy(options.preScale);
-	        	obj.set({position:lnglat})
-	        }
+	        obj.scale.copy(options.preScale);
+        	obj.set({position:lnglat})
+	        
 
 	        return obj;
 
 		}
 
+		obj.setRotation = function(xyz) {
+			var radians = {
+				x: utils.radify(xyz.x) || obj.parent.rotation.x,
+				y: utils.radify(xyz.y) || obj.parent.rotation.y,
+				z: utils.radify(xyz.z) || obj.parent.rotation.z
+			}
+
+			obj._setObject({rotation: radians})
+		}
+
 		obj.add = function(){
-	        var geoGroup = new THREE.Group();
-	        geoGroup.userData.isGeoGroup = true;
-	        geoGroup.add(obj);
 
-	        utils._flipMaterialSides(obj);
-	        root.world.add(geoGroup);
+	        root.world.add(obj);
 
+	        if (obj.userData.preScale) obj.scale.copy(obj.userData.preScale);
 
-	        if (obj.userData.preScale) geoGroup.scale.copy(obj.userData.preScale);
-	        // Bestow this mesh with animation superpowers and keeps track of its movements in the global animation queue
-	        root.animationManager.enroll(obj); 
 	        obj.set({position:obj.coordinates})
 
 	        return obj;
@@ -935,16 +953,33 @@ Objects.prototype = {
 		return obj
 	},
 
+	_makeGroup: function(obj){
+        var geoGroup = new THREE.Group();
+        geoGroup.userData.isGeoGroup = true;
+
+        var isArrayOfObjects = obj.length;
+
+        if (isArrayOfObjects){
+        	for (o of obj) geoGroup.add(o)
+        }
+
+    	else geoGroup.add(obj);
+
+        utils._flipMaterialSides(obj);
+
+        return geoGroup
+	},
+
 	animationManager: new AnimationManager(this.map),
 
 	_validate: function(options, objType){
-
 		var defaults = this._defaults[objType];
 		var validatedOutput = {};
+
 		for (key of Object.keys(defaults)){
 
-			if (defaults[key] === null) {
-				if (!options[key]) console.error(key + ' is required for all instances of threebox.'+objType+'()')
+			if (defaults[key] === null && !options[key]) {
+				console.error(key + ' is required for all instances of threebox.'+objType+'()')
 				return;
 			}
 
@@ -955,10 +990,12 @@ Objects.prototype = {
 	},
 
 	_defaults: {
+
 		line: {
 			geometry: null,
 			color: 'black'
 		},
+
 		sphere: {
 			radius: 50,
 			segments: 8,
@@ -967,22 +1004,32 @@ Objects.prototype = {
 		},
 
 		tube: {                
-            crossSection: {
-                radius: 20,
-                segments:6
-            },
+			geometry: null,
+            radius: 20,
+            segments:6,
             extrusion:{
                 smoothen: 2
             },
-            material: {
-                surface: 'Basic', 
-                color:'black',
-                wireframe: false
-            }
+			color: 'black',
+			material: 'MeshLambertMaterial'
+        },
+
+        extrusion:{
+        	footprint: null,
+        	base: 0,
+        	top: 100,
+        	color:'black',
+			material: 'MeshLambertMaterial'
         },
 
         loadObj:{
-
+        	position: [0,0,0],
+        	model: null,
+        	rotation:{
+        		x: 0,
+        		y: 0,
+        		z: 0
+        	}
         }
 	},
 
@@ -2463,7 +2510,7 @@ Threebox.prototype = {
 
         var sunlight = new THREE.DirectionalLight(0xffffff, 0.5);
         sunlight.position.set(0,800,1000);
-        sunlight.matrixWorldNeedsUpdate = true;
+        // sunlight.matrixWorldNeedsUpdate = true;
         this.world.add(sunlight);
 
         
