@@ -37,19 +37,20 @@ AnimationManager.prototype = {
                 if (state.rotation) {
                     var c = obj.rotation
                     entry.parameters.startRotation = [c.x, c.y, c.z];
-                    entry.parameters.rotationPerMs = [c.x, c.y, c.z].map(function(radian, index){
-                        return (utils.radify(state.rotation[index])-radian)/(options.duration);
+                    entry.parameters.rotationPerMs = ['x', 'y', 'z'].map(function(dimension, index){
+                        return (utils.radify(state.rotation[dimension])-c[dimension])/(options.duration);
                     })
                 }
+
                 if (state.position) {
-                    entry.parameters.startPosition = obj.coordinates;
-                    entry.parameters.positionPerMs = obj.coordinates.map(function(px, index){
-                        return (state.position[index]-px)/(options.duration);
-                    });
+                    entry.parameters.path = new THREE.CatmullRomCurve3(utils.lnglatsToWorld([obj.coordinates, state.position]));
                 }
 
+                window.entry = entry
                 this.animationQueue
-                    .push(entry);   
+                    .push(entry);
+
+                map.repaint = true;   
             }
 
 
@@ -84,11 +85,9 @@ AnimationManager.prototype = {
 
         obj.followPath = function (coordinates, options){
 
-            var path = utils.lnglatsToWorld(coordinates)
-
+            var path = utils.lnglatsToWorld(coordinates);
             path = new THREE.CatmullRomCurve3(path);
 
-            var lineGeojson = turf.lineString(coordinates);
 
             options = options || {};
 
@@ -96,23 +95,23 @@ AnimationManager.prototype = {
                 type: 'followPath', 
                 parameters: {
                     start: Date.now(), 
-                    distance: turf.lineDistance(lineGeojson, {units:'meters'}), 
-                    expiration: Date.now()+options.duration,
-                    geometry:lineGeojson,
+                    expiration: Date.now() + options.duration,
                     path: path
                 }
             };
 
             // apply options or the default value
-            Object.keys(defaults.followPath).forEach(function(key){
-                entry.parameters[key] = options[key] || defaults.followPath[key]
-            })
+            Object.keys(defaults.followPath)
+                .forEach(function(key){
+                    entry.parameters[key] = options[key] || defaults.followPath[key]
+                })
 
             this.animationQueue
                 .push(entry);
 
+            map.repaint = true;
+            
             return this;
-
         };
 
         obj.circlePoint = function(options){
@@ -131,22 +130,33 @@ AnimationManager.prototype = {
             return this;
         }
 
+        obj.rotateTo = function(xyz) {
+
+            var degrees = [xyz.x, xyz.y, xyz.z];
+            var radians = degrees.map(function(deg){
+                return utils.radify(deg)
+            })
+
+            var options = {rotation:{x: radians[0], y: radians[1], z: radians[2]}}
+
+            this._setObject(options)
+        }
+
         obj._setObject = function (options){
 
-            var p = options.position;
-            var r = options.rotation;
-            var w = options.worldCoordinates;
-            var q = options.quaternion
+            var p = options.position; // lnglat
+            var r = options.rotation; // radians
+            var w = options.worldCoordinates; //Vector3
+            var q = options.quaternion // [axis, angle]
 
             if (p) {
                 this.coordinates = p;
                 var c = utils.projectToWorld(p);
                 this.position.copy(c)
-                console.log(p)
             }
 
             if (q) this.quaternion.setFromAxisAngle(q[0], q[1])
-            if (r) this.rotation.copy(r)
+            if (r) this.rotation.set(r[0], r[1], r[2])
             if (w) this.position.copy(w);
 
             map.repaint = true
@@ -170,7 +180,6 @@ AnimationManager.prototype = {
 
             //focus on first item in queue
             var item = object.animationQueue[0];
-
             var options = item.parameters;
 
             // if an animation is past its expiration date, cull it
@@ -185,59 +194,54 @@ AnimationManager.prototype = {
                 return
             }
 
-
-            var sinceLastTick = (now-this.previousFrameTime)/1000;
+            // var sinceLastTick = (now-this.previousFrameTime)/1000;
 
             if (item.type === 'set'){
 
                 var timeProgress = now - options.start;
-                var newPosition, newRotation;
+                var objectState = {};
 
-                if (options.positionPerMs) {
-                    newPosition = options.startPosition.map(function(px, index){
-                        return px+options.positionPerMs[index]*timeProgress
-                    })
+                if (options.path) {
+                    var timeFrame = Math.min(now - options.start, options.duration-1);
+                    objectState.worldCoordinates = options.path.getPoint(timeFrame/options.duration);
                 }
+
                 if (options.rotationPerMs) {
-                    newRotation = options.startRotation.map(function(rad, index){
+                    objectState.rotation = options.startRotation.map(function(rad, index){
                         return rad+options.rotationPerMs[index]*timeProgress
                     })
                 }
 
-                object._setObject({position: newPosition, rotation:newRotation});
+                object._setObject(objectState);
 
             }
 
             // handle continuous animations
-            if (item.type === 'continuous'){
+            // if (item.type === 'continuous'){
 
-                if (options.position){
+            //     if (options.position){
 
-                    object.translateX(options.position[0]/sinceLastTick);
-                    object.translateY(options.position[1]/sinceLastTick);
-                    object.translateZ(options.position[2]/sinceLastTick);
+            //         object.translateX(options.position[0]/sinceLastTick);
+            //         object.translateY(options.position[1]/sinceLastTick);
+            //         object.translateZ(options.position[2]/sinceLastTick);
 
-                }
+            //     }
 
-                if (options.rotation){
+            //     if (options.rotation){
 
-                    object.rotateX(options.rotation[0]/sinceLastTick);
-                    object.rotateY(options.rotation[1]/sinceLastTick);
-                    object.rotateZ(options.rotation[2]/sinceLastTick);
+            //         object.rotateX(options.rotation[0]/sinceLastTick);
+            //         object.rotateY(options.rotation[1]/sinceLastTick);
+            //         object.rotateZ(options.rotation[2]/sinceLastTick);
 
-                }
-            }
+            //     }
+            // }
 
             if (item.type === 'followPath'){
 
                 var timeFrame = Math.min(now - options.start, options.duration-1);
 
                 var position = options.path.getPointAt(timeFrame/options.duration);
-
-
                 objectState = {worldCoordinates: position};
-
-                var toTurn;
 
                 // if we need to track heading
                 if (options.trackHeading){
@@ -254,9 +258,6 @@ AnimationManager.prototype = {
                     objectState.quaternion = [axis, radians];
 
                 }
-
-                else if (options.rotation) console.log('rotation present!')
-
 
                 object._setObject(objectState);
 

@@ -43,6 +43,7 @@ map.on('style.load', function() {
     map.addLayer({
         id: 'custom_layer',
         type: 'custom',
+        renderingMode: '3d',
         onAdd: function(map, gl){
             onAdd(map, gl);
         },
@@ -61,11 +62,14 @@ function onAdd(map, mbxContext) {
     // initialize geometry and material of our cube object
     var geometry = new THREE.BoxGeometry(2000, 2000, 2000);
 
-    var redMaterial = new THREE.MeshPhongMaterial( {color: 0x660000, side: THREE.DoubleSide});
+    var redMaterial = new THREE.MeshPhongMaterial({
+        color: 0x660000, 
+        side: THREE.DoubleSide
+    });
 
     var cube = new THREE.Mesh(geometry, redMaterial);
 
-    var cubeObj = threebox.Object3D(cube);
+    cubeObj = threebox.Object3D(cube);
 
     cubeObj
         .setCoords(origin)

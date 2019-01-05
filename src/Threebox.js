@@ -36,7 +36,7 @@ Threebox.prototype = {
 
 
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera( 28, window.innerWidth / window.innerHeight, 0.00000000000000001, 5000000000000000);
+        this.camera = new THREE.PerspectiveCamera( 28, window.innerWidth / window.innerHeight, 0.000001, 5000000000);
         this.layers = [];
 
         // The CameraSync object will keep the Mapbox and THREE.js camera movements in sync.

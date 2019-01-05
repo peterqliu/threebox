@@ -35,13 +35,26 @@ var utils = {
     //gimme radians
     radify: function(deg){
 
+        function convert(degrees){
+            return Math.PI*2*degrees/360
+        }
+        
         if (typeof deg === 'object'){
-            return deg.map(function(degree){
-                return Math.PI*2*degree/360
-            })
+
+            //if [x,y,z] array of rotations
+            if (deg.length > 0){
+                return deg.map(function(degree){
+                    return convert(degree)
+                })
+            }
+
+            // if {x: y: z:} rotation object
+            else {
+                return [convert(deg.x), convert(deg.y), convert(deg.z)]
+            }
         }
 
-        else return Math.PI*2*deg/360
+        else return convert(deg)
     },
 
     //gimme degrees
