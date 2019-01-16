@@ -77,7 +77,7 @@ CameraSync.prototype = {
             .makeTranslation(ThreeboxConstants.WORLD_SIZE/2, -ThreeboxConstants.WORLD_SIZE / 2, 0);
         
         translateMap
-            .makeTranslation(-this.map.transform.x, this.map.transform.y , 0);
+            .makeTranslation(-this.map.transform.point.x, this.map.transform.point.y , 0);
         
         rotateMap
             .makeRotationZ(Math.PI);
