@@ -76,8 +76,10 @@ CameraSync.prototype = {
         translateCenter
             .makeTranslation(ThreeboxConstants.WORLD_SIZE/2, -ThreeboxConstants.WORLD_SIZE / 2, 0);
         
+        var x = this.map.transform.x || this.map.transform.point.x;
+        var y = this.map.transform.y || this.map.transform.point.y;
         translateMap
-            .makeTranslation(-this.map.transform.x, this.map.transform.y , 0);
+            .makeTranslation(-x, y , 0);
         
         rotateMap
             .makeRotationZ(Math.PI);
