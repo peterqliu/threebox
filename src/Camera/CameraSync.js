@@ -19,14 +19,16 @@ function CameraSync(map, camera, world) {
     //set up basic camera state
 
     this.state = {
-        fov: 0.6435011087932844
+        fov: 0.6435011087932844,
+        translateCenter: new THREE.Matrix4,
+        worldSizeRatio: 512/ThreeboxConstants.WORLD_SIZE
     };
 
-    this.state.translateCenter = new THREE.Matrix4;
     this.state.translateCenter.makeTranslation(ThreeboxConstants.WORLD_SIZE/2, -ThreeboxConstants.WORLD_SIZE / 2, 0);
 
     // Listen for move events from the map and update the Three.js camera. Some attributes only change when viewport resizes, so update those accordingly
     var _this = this;
+
     this.map
         .on('move', function() {
             _this.updateCamera()
@@ -89,7 +91,7 @@ CameraSync.prototype = {
         this.camera.matrixWorld.copy(cameraWorldMatrix);
 
 
-        var zoomPow =  t.scale; 
+        var zoomPow = t.scale * this.state.worldSizeRatio; 
 
         // Handle scaling and translation of objects in the map in the world's matrix transform, not the camera
         var scale = new THREE.Matrix4;
@@ -101,8 +103,11 @@ CameraSync.prototype = {
             .makeScale( zoomPow, zoomPow , zoomPow );
     
         
+        var x = -this.map.transform.x || -this.map.transform.point.x;
+        var y = this.map.transform.y || this.map.transform.point.y;
+
         translateMap
-            .makeTranslation(-t.x, t.y , 0);
+            .makeTranslation(x, y, 0);
         
         rotateMap
             .makeRotationZ(Math.PI);

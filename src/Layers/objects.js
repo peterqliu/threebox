@@ -1,20 +1,15 @@
 var utils = require("../Utils/Utils.js");
-const ValueGenerator = require("../Utils/ValueGenerator.js");
+var material = require("../Helpers/material.js");
+
 const OBJLoader = require("../Loaders/OBJLoader.js");
 const MTLLoader = require("../Loaders/MTLLoader.js");
 const AnimationManager = require("../Animation/AnimationManager.js");
 
 
-function Objects(map, world, animationManager){
-
-	this.map = map;
-	this.world = world;
-	// this.animationManager = animationManager;
+function Objects(){
+	// this.map = map;
+	// this.world = world;
 }
-
-
-
-
 
 Objects.prototype = {
 
@@ -22,97 +17,169 @@ Objects.prototype = {
 
 	sphere: function(obj){
 
-		obj = this.objects._validate(obj, 'sphere');
+		obj = utils._validate(obj, this._defaults.sphere);
 
-		var geometry = new THREE.SphereGeometry( obj.radius, obj.segments, obj.segments );
-		var material = new THREE[obj.material]( {color: obj.color} );
-		var mesh = new THREE.Mesh( geometry, material );
+		var unitRatio = {
+			scene: 1,
+			meters: utils.projectedUnitsPerMeter(obj.position[1])
+		}
+		var geometry = new THREE.SphereGeometry( obj.radius * unitRatio[obj.units], obj.segments, obj.segments );
+		var mat = material(obj)
 
-        var group = this.objects._makeGroup(mesh);
-        this.objects._addMethods(group);
-
+		var mesh = new THREE.Mesh( geometry, mat );
+        var group = this._makeGroup(mesh, obj);
+        this._addMethods(group);
+        // this.setCoords(obj.position);
         return group
 	},
 
 	line: function(obj){
 
-		obj = this.objects._validate(obj, 'line');
+		obj = utils._validate(obj, this._defaults.line);
 
-		var meterProjectedCoords = utils.lnglatToMeters(obj.geometry);
-		var coords = meterProjectedCoords.coordinates;
+		//project to world and normalize
+        var straightProject = utils.lnglatsToWorld(obj.geometry);
+		var normalized = utils.normalizeVertices(straightProject);
 
-        var spline = coords.map(
-        	function(pt){
-        		var v3 = new THREE.Vector3(pt[0], pt[1], pt[2])
-        		return v3
-        	}
-        );
+		//flatten array for buffergeometry
+        var flattenedArray = utils.flattenVectors(normalized.vertices);
 
-		spline = new THREE.CatmullRomCurve3(spline);
+		var positions = new Float32Array(flattenedArray); // 3 vertices per point
+		var geometry = new THREE.BufferGeometry();
+		geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
 
-        var geometry = spline.getPoints()
-        geometry = new THREE.BufferGeometry().setFromPoints(geometry)
+		// material
+		var material = new THREE.LineBasicMaterial( { color: 0xff0000, linewidth: 21 } );
+		var line = new THREE.Line( geometry,  material );
 
+        var options = options || {};
+		// var group = this._makeGroup(line, options);
+        // this._addMethods(group, false);
+        line.position.copy(normalized.position)
 
-        // var materialType = 'Line'+ obj.material.surface + 'Material';
-        var material = new THREE.LineBasicMaterial({ color: 0x0000ff });
-        var mesh = new THREE.Line( geometry, material );
+  		return line  
+	},
 
-        mesh.coordinates = meterProjectedCoords.anchor
+	boneTube: function(obj){
+		var geometry = new THREE.CylinderBufferGeometry( 1, 1, 2, 32, 10 );
+		// var material = new THREE.MeshStandardMaterial( {color: 'steelblue'} );
+		// var cylinder = new THREE.Mesh( geometry, material );
 
-        this.objects._addMethods(mesh);
-        mesh.setCoords(mesh.coordinates, {scaleToLatitude:true});
-        return mesh  
+		// return cylinder
+
+		// create the skin indices and skin weights
+
+		var position = geometry.attributes.position;
+
+		var vertex = new THREE.Vector3();
+
+		var skinIndices = [];
+		var skinWeights = [];
+
+		for ( var i = 0; i < position.count; i ++ ) {
+
+			vertex.fromBufferAttribute( position, i );
+
+			// compute skinIndex and skinWeight based on some configuration data
+
+			var y = ( vertex.y + 2 );
+
+			var skinIndex = Math.floor( y / 2 );
+			var skinWeight = ( y % 2 ) / 2;
+
+			skinIndices.push( skinIndex, skinIndex + 1, 0, 0 );
+			skinWeights.push( 1 - skinWeight, skinWeight, 0, 0 );
+
+		}
+
+		geometry.addAttribute( 'skinIndex', new THREE.Uint16BufferAttribute( skinIndices, 4 ) );
+		geometry.addAttribute( 'skinWeight', new THREE.Float32BufferAttribute( skinWeights, 4 ) );
+
+		var bones = [];
+
+		var shoulder = new THREE.Bone();
+		var elbow = new THREE.Bone();
+		var hand = new THREE.Bone();
+
+		shoulder.add( elbow );
+		elbow.add( hand );
+
+		bones.push( shoulder );
+		bones.push( elbow );
+		bones.push( hand );
+
+		shoulder.position.y = -5;
+		elbow.position.y = 0;
+		hand.position.y = 5;
+
+		// create skinned mesh and skeleton
+
+		var mesh = new THREE.SkinnedMesh( geometry, material );
+		var skeleton = new THREE.Skeleton( bones );
+		console.log(skeleton)
+
+		// see example from THREE.Skeleton
+
+		var rootBone = skeleton.bones[ 0 ];
+		mesh.add( rootBone );
+
+		// bind the skeleton to the mesh
+
+		mesh.bind( skeleton );
+
+		// move the bones and manipulate the model
+
+		skeleton.bones[ 0 ].rotation.x = -0.1;
+		skeleton.bones[ 1 ].rotation.x = 0.2;
+		
+		mesh.scale.set(10,10,10)
+
+		console.log(mesh)
+		return mesh
 	},
 
 	tube: function(obj){
 
-		obj = this.objects._validate(obj, 'tube');
-
-		var meterProjectedCoords = utils.lnglatToMeters(obj.geometry);
-
-		var coords = meterProjectedCoords.coordinates;
+		obj = utils._validate(obj, this._defaults.tube);
        	
-        var spline = coords.map(
-        	function(pt){
-        		var v3 = new THREE.Vector3(pt[0], pt[1], pt[2])
-        		return v3
-        	}
-        );
+        var straightProject = utils.lnglatsToWorld(obj.geometry);
+		var normalized = utils.normalizeVertices(straightProject);
 
-        spline = new THREE.CatmullRomCurve3(spline);
-        var pts = [], count = obj.segments;
-
-        for ( var i = 0; i < count; i ++ ) {
-
-            var l = obj.radius;
-            var a = 2 * i / count * Math.PI;
-            pts.push( new THREE.Vector2 ( Math.cos( a ) * l, Math.sin( a ) * l ) );
-
-        }
-
-        var shape = new THREE.Shape( pts );
+        var spline = new THREE.CatmullRomCurve3(normalized.vertices);
 
         var extrudeSettings = {
-            steps: coords.length * obj.extrusion.smoothen,
+            steps: spline.points.length * obj.smoothen-1,
             bevelEnabled: false,
             extrudePath: spline
         };
 
-        var geometry = new THREE.ExtrudeBufferGeometry( shape, extrudeSettings );
-        var material = new THREE[obj.material](obj.material);
+        // define cross-section geometry
 
-        var mesh = new THREE.Mesh( geometry, material );
+        var crossSection = [];
+        var count = obj.segments;
 
+        for ( var i = 0; i < count; i ++ ) {
+            var l = obj.radius;
+            var a = 2 * i / count * Math.PI;
+            crossSection.push( new THREE.Vector2 ( Math.cos( a ) * l, Math.sin( a ) * l ) );
+        }
 
-        var group = this.objects._makeGroup(mesh);
-        this.objects._addMethods(group);
-        group.coordinates = meterProjectedCoords.anchor;
+        crossSection = new THREE.Shape( crossSection );
 
-        group.setCoords(group.coordinates, {scaleToLatitude:true});
+        // assemble geometry from spline and cross section
+
+        var geometry = new THREE.ExtrudeBufferGeometry( crossSection, extrudeSettings );
+		var mat = material(obj);
+
+        var mesh = new THREE.Mesh( geometry, mat );
+
+        var options = options || {};
+        var group = this._makeGroup(mesh, options);
+        this._addMethods(group, true);
+        mesh.position.copy(normalized.position);
+        geometry.dispose();
 
         return group
-             
 	},
 
 	extrusion: function(options){
@@ -121,25 +188,9 @@ Objects.prototype = {
 
 	loadObj: function(options, cb){
 
-	    if(options === undefined) return console.error("Invalid options provided to SymbolLayer3D");
-	    // TODO: Better error handling here
-
-	    if(options.scale === undefined) options.scale = 1.0;
-	    if(options.rotation === undefined) options.rotation = 0;
-	    if(options.scaleWithMapProjection === undefined) options.scaleWithMapProjection = true;
-	    if(options.key === undefined || options.key === '' || (typeof options.key === 'object' && options.key.property === undefined && options.key.generator === undefined)) {
-	        options.key = { generator: (v,i) => i };
-	        console.warn("Using array index for SymbolLayer3D key property.");
-	    }
-
-	    this.id = options.id;
-	    this.keyGen = ValueGenerator(options.key);
-	    if (typeof options.source === "string") this.sourcePath = options.source;
-	    else this.source = options.source;
+	    if(options === undefined) return console.error("Invalid options provided to loadObj()");
 
 	    this.loaded = false;
-
-        
 
         const modelComplete = (m) => {
             console.log("Model complete!", m);
@@ -167,12 +218,19 @@ Objects.prototype = {
             
             objLoader.load(options.model.obj, obj => {
 
-            	obj.rotation.set(options.rotation.x + Math.PI/2, options.rotation.y, options.rotation.z)
+            	var r = utils.types.rotation(options.model, [0, 0, 0]);
+            	var s = utils.types.scale(options.model, [1, 1, 1]);
 
-		        var group = root.objects._makeGroup(obj);
-		        root.objects._addMethods(group);
+            	obj = obj.children[0];
+            	obj.rotation.set(r[0] + Math.PI/2, r[1] + Math.PI, r[2]);
+            	obj.scale.set(s[0], s[1], s[2]);
 
-                cb(group);
+            	var projScaleGroup = new THREE.Group();
+            	projScaleGroup.add(obj)
+		        var userScaleGroup = root._makeGroup(projScaleGroup, options);
+		        root._addMethods(userScaleGroup);
+
+                cb(userScaleGroup);
 
             }, () => (null), error => {
                 console.error("Could not load model file.");    
@@ -182,100 +240,108 @@ Objects.prototype = {
 	},
 
 	Object3D: function(obj, options) {
-		var group = this.objects._makeGroup(obj);
-		obj = this.objects._addMethods(group);
+		options = utils._validate(options, 'material');
+
+		var group = this._makeGroup(obj, options);
+		obj = this._addMethods(group);
 		return obj
 	},
 
-	_addMethods: function(obj){
+
+	// // duplicates an Object3D with THREE's .clone() method, but also restores threebox helper methods
+	// clone: function(obj) {
+	// 	var dupe = new (this.constructor).copy(this); 
+	// 	dupe.userData = obj.userData;
+	// 	this._addMethods(dupe);
+	// 	return dupe
+	// },
+
+	_addMethods: function(obj, static){
 
 		var root = this;
 
-		if (!obj.coordinates) obj.coordinates = [0,0,0];
-
-	     // Bestow this mesh with animation superpowers and keeps track of its movements in the global animation queue
-	    root.animationManager.enroll(obj); 
-		
-		obj.setCoords = function(lnglat, options){
-
-	        /** Place the given object on the map, centered around the provided longitude and latitude
-	            The object's internal coordinates are assumed to be in meter-offset format, meaning
-	            1 unit represents 1 meter distance away from the provided coordinate.
-	        */
-
-	        if (obj.userData.anchor) {
-	            console.warn('setCoords: Only objects with point geometries can be moved with this method. To set this in a new location, add a new object with the new line/polygon coordinates.')
-	            // return;
-	        }
-
-	        if (options === undefined) options = {};
-	        if(options.preScale === undefined) options.preScale = 1.0;
-	        if(options.scaleToLatitude === undefined || obj.userData.scaleToLatitude) options.scaleToLatitude = true;
-	        obj.userData.scaleToLatitude = options.scaleToLatitude;
-
-	        if (typeof options.preScale === 'number') options.preScale = new THREE.Vector3(options.preScale, options.preScale, options.preScale);
-	        else if(options.preScale.constructor === Array && options.preScale.length === 3) options.preScale = new THREE.Vector3(options.preScale[0], options.preScale[1], options.preScale[2]);
-	        else if(options.preScale.constructor !== THREE.Vector3) {
-	            console.warn("Invalid preScale value: number, Array with length 3, or THREE.Vector3 expected. Defaulting to [1,1,1]");
-	            options.preScale = new THREE.Vector3(1,1,1);
-	        }
-
-	        obj.userData.preScale = options.preScale;
-
-	        if(options.scaleToLatitude) {
-	            // Scale the model so that its units are interpreted as meters at the given latitude
-	            var pixelsPerMeter = utils.projectedUnitsPerMeter(lnglat[1]);
-	            options.preScale.multiplyScalar(pixelsPerMeter);
-	        }	
-
-	        obj.coordinates = lnglat;
-
-	        obj.scale.copy(options.preScale);
-        	obj.set({position:lnglat})
-	        
-
-	        return obj;
+		if (static) {
 
 		}
 
-		obj.setRotation = function(xyz) {
-			var radians = {
-				x: utils.radify(xyz.x) || obj.parent.rotation.x,
-				y: utils.radify(xyz.y) || obj.parent.rotation.y,
-				z: utils.radify(xyz.z) || obj.parent.rotation.z
+		else {
+
+			if (!obj.coordinates) obj.coordinates = [0,0,0];
+
+	    	// Bestow this mesh with animation superpowers and keeps track of its movements in the global animation queue			
+			root.animationManager.enroll(obj); 
+			obj.setCoords = function(lnglat){
+
+		        /** Place the given object on the map, centered around the provided longitude and latitude
+		            The object's internal coordinates are assumed to be in meter-offset format, meaning
+		            1 unit represents 1 meter distance away from the provided coordinate.
+		        */
+
+		        if (obj.userData.anchor) {
+		            console.warn('setCoords: Only objects with point geometries can be moved with this method. To set this in a new location, add a new object with the new line/polygon coordinates.')
+		            // return;
+		        }
+
+		        // If object already added, scale the model so that its units are interpreted as meters at the given latitude
+				if (obj.userData.units === 'meters'){
+					var s = utils.projectedUnitsPerMeter(lnglat[1]);
+					obj.scale.set(s,s,s);
+				}
+
+				obj.coordinates = lnglat;
+	        	obj.set({position:lnglat})
+		        
+
+		        return obj;
+
 			}
 
-			obj._setObject({rotation: radians})
+			obj.setRotation = function(xyz) {
+
+				if (typeof xyz === 'number') xyz = {z: xyz}
+
+				var r = {
+					x: utils.radify(xyz.x) || obj.rotation.x,
+					y: utils.radify(xyz.y) || obj.rotation.y,
+					z: utils.radify(xyz.z) || obj.rotation.z
+				}
+
+				obj._setObject({rotation: [r.x, r.y, r.z]})
+			}
+
 		}
 
 		obj.add = function(){
-
 	        root.world.add(obj);
-
-	        if (obj.userData.preScale) obj.scale.copy(obj.userData.preScale);
-
-	        obj.set({position:obj.coordinates})
-
+	        if (!static) obj.set({position:obj.coordinates});
 	        return obj;
 		}
+
 
 		obj.remove = function(){
 			root.world.remove(obj);
 			root.map.repaint = true;
 		}
 
+		obj.duplicate = function(a) {
+			var dupe = obj.clone(); 
+			dupe.userData = obj.userData;
+			root._addMethods(dupe);
+			return dupe
+		}
+	
 		return obj
 	},
 
-	_makeGroup: function(obj){
+	_makeGroup: function(obj, options){
         var geoGroup = new THREE.Group();
+        geoGroup.userData = options || {};
         geoGroup.userData.isGeoGroup = true;
 
         var isArrayOfObjects = obj.length;
 
-        if (isArrayOfObjects){
-        	for (o of obj) geoGroup.add(o)
-        }
+        if (isArrayOfObjects) for (o of obj) geoGroup.add(o)
+
 
     	else geoGroup.add(obj);
 
@@ -284,48 +350,29 @@ Objects.prototype = {
         return geoGroup
 	},
 
-	animationManager: new AnimationManager(this.map),
-
-	_validate: function(options, objType){
-		var defaults = this._defaults[objType];
-		var validatedOutput = {};
-
-		for (key of Object.keys(defaults)){
-
-			if (defaults[key] === null && !options[key]) {
-				console.error(key + ' is required for all instances of threebox.'+objType+'()')
-				return;
-			}
-
-			else validatedOutput[key] = options[key] || defaults[key]
-		}
-
-		return validatedOutput
-	},
+	animationManager: new AnimationManager,
 
 	_defaults: {
 
 		line: {
 			geometry: null,
-			color: 'black'
+			color: 'black',
+			scaleToLatitude: false
 		},
 
 		sphere: {
-			radius: 50,
-			segments: 8,
-			color: 'black',
-			material: 'MeshLambertMaterial'
+			position: [0,0,0],
+			radius: 1,
+			segments: 20,
+			units: 'scene'
 		},
 
 		tube: {                
 			geometry: null,
-            radius: 20,
+            radius: 1,
             segments:6,
-            extrusion:{
-                smoothen: 2
-            },
-			color: 'black',
-			material: 'MeshLambertMaterial'
+            smoothen: 2,
+			scaleToLatitude: false
         },
 
         extrusion:{
@@ -333,17 +380,18 @@ Objects.prototype = {
         	base: 0,
         	top: 100,
         	color:'black',
-			material: 'MeshLambertMaterial'
+			material: 'MeshLambertMaterial',
+			scaleToLatitude: false
         },
 
         loadObj:{
         	position: [0,0,0],
         	model: null,
-        	rotation:{
-        		x: 0,
-        		y: 0,
-        		z: 0
-        	}
+			scaleToLatitude: false
+        },
+
+        Object3D: {
+        	scaleToLatitude: false
         }
 	},
 

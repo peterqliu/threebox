@@ -2,15 +2,16 @@ var THREE = require("./three.js");
 var CameraSync = require("./Camera/CameraSync.js");
 var utils = require("./Utils/Utils.js");
 var AnimationManager = require("./Animation/AnimationManager.js");
-var SymbolLayer3D = require("./Layers/SymbolLayer3D.js");
 var Objects = require("./Layers/objects.js");
+var material = require("./Helpers/material.js");
+
 var ThreeboxConstants = require("../src/constants.js");
 
 function Threebox(map, glContext){
 
     this.init(map, glContext);
 
-}
+};
 
 Threebox.prototype = {
 
@@ -36,7 +37,7 @@ Threebox.prototype = {
 
 
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera( 28, window.innerWidth / window.innerHeight, 0.000001, 5000000000);
+        this.camera = new THREE.PerspectiveCamera( 28, window.innerWidth / window.innerHeight, 0.000000000001, Infinity);
         this.layers = [];
 
         // The CameraSync object will keep the Mapbox and THREE.js camera movements in sync.
@@ -48,30 +49,52 @@ Threebox.prototype = {
 
         this.cameraSync = new CameraSync(this.map, this.camera, this.world);
 
-        // make useful methods accessible to user
-        for (i in utils.exposedMethods){
-            var method = utils.exposedMethods[i]
-            this[method] = utils[method]
-        }
+        // // make useful methods accessible to user
+        // for (i in utils.exposedMethods){
+        //     var method = utils.exposedMethods[i]
+        //     this[method] = utils[method]
+        // }
 
         //raycaster for mouse events
-
         this.raycaster = new THREE.Raycaster();
-
-
-        this.objects = new Objects(this.map, this.world, new AnimationManager(this.map));
-        
-        var scope = this;
-        Object.keys(this.objects['__proto__'])
-            .filter(function(key){return !key.includes('_')})
-            .forEach(function(key){
-                scope[key] = scope.objects['__proto__'][key]
-            })
-        // this.animationManager = new AnimationManager(map);
-
 
     },
 
+    // Objects
+
+    objects: new Objects(AnimationManager),
+
+    sphere: function(o) {
+        return this.objects.sphere(o)
+    },
+
+    line: function(o) {
+        return this.objects.line(o)
+    },
+
+    tube: function(o) {
+        return this.objects.tube(o)
+    },
+
+    Object3D: function(obj, o) {
+        return this.objects.Object3D(obj, o)
+    },
+
+    loadObj: function(o, cb) {
+        return this.objects.loadObj(o, cb)
+    },
+
+    // clone: function(obj) {
+    //     return this.objects.clone(obj)
+    // },
+    
+    // Material
+
+    material: function(o){
+        return material(o)
+    },
+
+    utils: utils,
 
     queryRenderedFeatures: function(point){
 
@@ -79,7 +102,7 @@ Threebox.prototype = {
         
         // // scale mouse pixel position to a percentage of the screen's width and height
         mouse.x = ( point.x / this.map.transform.width ) * 2 - 1;
-        mouse.y = -( ( point.y) / this.map.transform.height ) * 2 + 1;
+        mouse.y = 1 - ( point.y / this.map.transform.height ) * 2;
 
         this.raycaster.setFromCamera(mouse, this.camera);
 
@@ -94,6 +117,7 @@ Threebox.prototype = {
         if (this.map.repaint) this.map.repaint = false
 
         var timestamp = Date.now();
+
         // Update any animations
         this.objects.animationManager.update(timestamp);
         
@@ -104,17 +128,16 @@ Threebox.prototype = {
 
     },
 
-
-    add: function(obj, options) {
+    add: function(obj) {
         
-        var geoGroup = new THREE.Group();
-        geoGroup.userData.isGeoGroup = true;
-        geoGroup.add(obj);
-        this.animationManager.enroll(obj); 
-        this.world.add(geoGroup);
+        // var geoGroup = new THREE.Group();
+        // geoGroup.userData.isGeoGroup = true;
+        // geoGroup.add(obj);
+        // this.animationManager.enroll(obj); 
+        this.world.add(obj);
 
 
-        this.moveToCoordinate(obj, obj.coordinates, options);
+        // this.moveToCoordinate(obj, obj.coordinates, options);
 
     },
 
@@ -133,7 +156,6 @@ Threebox.prototype = {
     moveToCoordinate: function(obj, lnglat, options) {
 
         if (!obj.setCoords) obj = this.Object3D(obj);
-
         obj.setCoords(lnglat, options);
 
         return obj;
@@ -146,22 +168,9 @@ Threebox.prototype = {
 
     },
 
-    addSymbolLayer: function(options) {
-        const layer = new SymbolLayer3D(this, options);
-        this.layers.push(layer);
-
-        return layer;
-    },
-
-    getDataLayer: function(id) {
-        for(var i = 0; i < this.layers.length; i++) {
-            if (this.layer.id === id) return layer;
-        }
-    },
-
     remove: function(obj) {
 
-        console.warn('remove(obj) has been moved inside the object. Call obj.remove() instead')
+        console.warn('remove(obj) has been moved inside the object. In the future, call obj.remove() instead')
 
         if (!obj.remove) obj = this.Object3D(obj);
 
@@ -176,9 +185,9 @@ Threebox.prototype = {
         sunlight.position.set(0,800,1000);
         // sunlight.matrixWorldNeedsUpdate = true;
         this.world.add(sunlight);
+    },
 
-        
-    }
+    memory: function (){ return this.renderer.info.memory}
 }
 
 module.exports = exports = Threebox;

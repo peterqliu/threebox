@@ -1,5 +1,5 @@
 var THREE = require("../three.js");
-var ThreeboxConstants = require("../../src/constants.js");
+var Constants = require("../../src/constants.js");
 var turf = require("@turf/turf");
 
 
@@ -36,9 +36,10 @@ var utils = {
     radify: function(deg){
 
         function convert(degrees){
+            degrees = degrees || 0;
             return Math.PI*2*degrees/360
         }
-        
+
         if (typeof deg === 'object'){
 
             //if [x,y,z] array of rotations
@@ -54,6 +55,7 @@ var utils = {
             }
         }
 
+        //if just a number
         else return convert(deg)
     },
 
@@ -67,16 +69,17 @@ var utils = {
         // Spherical mercator forward projection, re-scaling to WORLD_SIZE
 
         var projected = [
-            -ThreeboxConstants.MERCATOR_A * coords[0] * ThreeboxConstants.DEG2RAD * ThreeboxConstants.PROJECTION_WORLD_SIZE,
-            -ThreeboxConstants.MERCATOR_A * Math.log(Math.tan((Math.PI*0.25) + (0.5 * coords[1] * ThreeboxConstants.DEG2RAD))) * ThreeboxConstants.PROJECTION_WORLD_SIZE
+            -Constants.MERCATOR_A * Constants.DEG2RAD* coords[0] * Constants.PROJECTION_WORLD_SIZE,
+            -Constants.MERCATOR_A * Math.log(Math.tan((Math.PI*0.25) + (0.5 * Constants.DEG2RAD * coords[1]) )) * Constants.PROJECTION_WORLD_SIZE
         ];
      
-        var pixelsPerMeter = this.projectedUnitsPerMeter(coords[1]);
+        //z dimension, defaulting to 0 if not provided
 
-        //z dimension
-
-        var height = coords[2] || 0;
-        projected.push( height * pixelsPerMeter );
+        if (!coords[2]) projected.push(0)
+        else {
+            var pixelsPerMeter = this.projectedUnitsPerMeter(coords[1]);
+            projected.push( coords[2] * pixelsPerMeter );
+        }
 
         var result = new THREE.Vector3(projected[0], projected[1], projected[2]);
 
@@ -84,7 +87,7 @@ var utils = {
     },
 
     projectedUnitsPerMeter: function(latitude) {
-        return Math.abs(ThreeboxConstants.WORLD_SIZE * (1 / Math.cos(latitude*Math.PI/180))/ThreeboxConstants.EARTH_CIRCUMFERENCE);
+        return Math.abs( Constants.WORLD_SIZE / Math.cos( Constants.DEG2RAD * latitude ) / Constants.EARTH_CIRCUMFERENCE );
     },
 
     _scaleVerticesToMeters: function(centerLatLng, vertices) {
@@ -106,17 +109,18 @@ var utils = {
         console.log("WARNING: unproject is not yet implemented");
     },
 
-    unprojectFromWorld: function (pixel) {
+    //world units to lnglat
+    unprojectFromWorld: function (worldUnits) {
 
         var unprojected = [
-            -pixel.x / (ThreeboxConstants.MERCATOR_A * ThreeboxConstants.DEG2RAD * ThreeboxConstants.PROJECTION_WORLD_SIZE),
-            2*(Math.atan(Math.exp(pixel.y/(ThreeboxConstants.PROJECTION_WORLD_SIZE*(-ThreeboxConstants.MERCATOR_A))))-Math.PI/4)/ThreeboxConstants.DEG2RAD
+            -worldUnits.x / (Constants.MERCATOR_A * Constants.DEG2RAD * Constants.PROJECTION_WORLD_SIZE),
+            2*(Math.atan(Math.exp(worldUnits.y/(Constants.PROJECTION_WORLD_SIZE*(-Constants.MERCATOR_A))))-Math.PI/4)/Constants.DEG2RAD
         ];
 
         var pixelsPerMeter = this.projectedUnitsPerMeter(unprojected[1]);
 
         //z dimension
-        var height = pixel.z || 0;
+        var height = worldUnits.z || 0;
         unprojected.push( height / pixelsPerMeter );
 
         return unprojected;
@@ -126,79 +130,265 @@ var utils = {
 
     },
 
-    //convert a line/polygon to meter coordinates, normalized to the first coordinate
-    lnglatToMeters: function(coords){
+    //convert a line/polygon to meter coordinates, normalized to the geometric center
+    // lnglatToMeters: function(coords){
 
-        var self = this;
-        var ref = false;
-        const data = turf.lineString(coords);
+    //     var self = this;
 
-        turf.coordEach(data, function(a){
-            var inputPoint = a;
-            var output = reproject(inputPoint);
+    //     const line = turf.lineString(coords);
 
-            a.length = 0;
-            a.push(output[0], output[1], output[2])
+    //     //
+    //     var reference = turf.center(line);
+    //     reference.geometry.coordinates.push(0);
 
-        })
+    //     // reproject lnglat to meter offset from center
+    //     var reprojected = line.geometry.coordinates.map(
+    //         function(point){
+    //             point[2] = typeof point[2] === 'number' ? point[2] : 0;
+    //             var projectedPoint;
 
-        function reproject(point){
+    //             var pt = turf.point(point);
+    //             var bearing = self.radify(turf.bearing(reference, pt)-180);
+    //             var distance = turf.distance(reference, pt, {units:'kilometers'})*1000;
 
-            point[2] = typeof point[2] === 'number' ? point[2] : 0;
-            var projectedPoint;
+    //             //compute offsets in three dimensions, in meters
+    //             var deltaX = Math.sin(bearing) * distance;
+    //             var deltaY = Math.cos(bearing) * distance;
+    //             var deltaZ = point[2] - reference.geometry.coordinates[2];
+    //             projectedPoint = [deltaX, deltaY, deltaZ]
+            
+    //             return projectedPoint
+    //         }
+    //     )
 
-            if (!ref) {
-                ref = [point[0], point[1], point[2]];
-                projectedPoint = [0,0,0];
-            }
+    //     return {coordinates: reprojected, anchor: reference.geometry.coordinates}
+    // },
 
-            else {
-                var reference = turf.point(ref);
-                var pt = turf.point(point);
-                var bearing = self.radify(turf.bearing(reference, pt)-180);
-                var distance = turf.distance(reference, pt, {units:'meters'});
-                var deltaX = Math.sin(bearing) * distance;
-                var deltaY = Math.cos(bearing) * distance;
-                var deltaZ = point[2] - ref[2];
-                projectedPoint = [deltaX, deltaY, deltaZ]
-            }
+    // to improve precision, normalize a series of vector3's to their collective center, and move the resultant mesh to that center
+    normalizeVertices(vertices) {
 
-            return projectedPoint
+        var geometry = new THREE.Geometry();
 
+        for (v3 of vertices) {
+            geometry.vertices.push(v3)
         }
 
-        return {coordinates: data.geometry.coordinates, anchor: ref}
+        geometry.computeBoundingSphere();
+        var center = geometry.boundingSphere.center;
+        var radius = geometry.boundingSphere.radius;
+
+        var scaled = vertices.map(function(v3){
+            var normalized = v3.sub(center);
+            return normalized;
+        });
+
+        return {vertices: scaled, position: center}
+    },
+
+    //flatten an array of Vector3's into a shallow array of values in x-y-z order, for bufferGeometry
+    flattenVectors(vectors) {
+        var flattenedArray = [];
+        for (vertex of vectors) {
+            flattenedArray.push(vertex.x, vertex.y, vertex.z);
+        }
+        return flattenedArray
     },
 
     //convert a line/polygon to Vector3's
 
     lnglatsToWorld: function(coords){
-        vector3 = coords.map(
+
+        var vector3 = coords.map(
             function(pt){
-                var p = utils.projectToWorld(pt)
-                var v3 = new THREE.Vector3(p.x, p.y, p.z)
+                var p = utils.projectToWorld(pt);
+                var v3 = new THREE.Vector3(p.x, p.y, p.z);
                 return v3
             }
         );
 
         return vector3
     },
-    pathDistance(spline){
 
-        var totalDistance = 0;
-        var points = spline.points
-
-        for (p in points){
-            if (points[p+1]) {
-                var segmentDistance = points[p].distanceTo(points[p+1])
-                totalDistance += segmentDistance
-            }
-        }
-
-        return totalDistance
+    extend: function(original, addition) {
+        for (key in addition) original[key] = addition[key];
     },
 
-    exposedMethods: ['projectToWorld', 'projectedUnitsPerMeter']
+    clone: function(original) {
+        var clone = {};
+        for (key in original) clone[key] = original[key];
+        return clone;
+    },
+    
+    // retrieve object parameters from an options object
+
+    types: {
+
+        rotation: function(r, currentRotation){
+
+            // if number provided, rotate only in Z by that amount
+            if (typeof r === 'number') r = {z:r};
+
+            var degrees = this.applyDefault([r.x, r.y, r.z], currentRotation);
+            var radians = utils.radify(degrees);
+            return radians;
+            
+        },
+
+        scale: function(s, currentScale){
+            if (typeof s === 'number') return s = [s,s,s]; 
+            else return this.applyDefault([s.x, s.y, s.z], currentScale);
+        },
+
+        applyDefault: function(array, current){
+
+            var output = array.map(function(item, index){
+                item = item || current[index];
+                return item
+            })
+
+            return output
+        },
+
+        validate: {
+
+            rotation: {
+                types: [Object, Number],
+                limits: [
+                    {
+                        keys: {
+                            allowable: ['x', 'y', 'z'],
+                            required: [],
+                            error: 'Invalid rotation property'
+                        },
+
+                        limits: {
+                            types: ['number'],
+                            error: 'Individual rotation values must be numbers'
+                        }
+                    }
+                ],
+                error: 'Rotation'
+            },
+
+            scale: {
+                types: [Object, Number],
+                limits: [
+                    {
+                        keys: {
+                            allowable: ['x', 'y', 'z'],
+                            required: [],
+                            error: 'Invalid scale property'
+                        },
+
+                        limits: {
+                            types: ['number'],
+                            min: 0
+                        }
+                    },
+                    {
+                        min: 0
+                    }
+                ]                
+            },
+
+            coords: {
+                types: [Array],
+                limits: [
+                    {
+                        length: {
+                            min: 2,
+                            max:3
+                        },
+
+                        limits: [
+                            {
+                                types: ['number'],
+                                min: -180,
+                                max: 180,
+                                error: 'Longitude must be between -180 and 180'
+                            },
+                            {
+                                types: ['number'],
+                                min: -90,
+                                max: 90,
+                                error: 'Latitude must be between -90 and 90'
+                            },
+                            {
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+
+        validator: function(input, rule) {
+
+            type = typeof input;
+
+            if (rule.types) {
+
+                var validType = rule.types.indexOf(type);
+
+                if (validType > -1) {
+
+                    if (rule.limits) {
+                        var subrule = rule.limits[validType]
+                        this.validator(input, subrule)
+                    }
+
+                    else {}
+                }
+
+                else console.log('bad type')
+            }
+
+
+            if (rule.length) {
+
+                if (input.length <= rule.length.max && input.length >= rule.length.min) {
+
+                }
+
+                else console.log('bad length')
+            }
+        },
+
+        functionChecks: {
+
+            rotation: function(input) {
+
+                if (input.constructor === Object) {
+                    var each = function(member){return member.constructor === number}
+                }
+
+                if (input.constructor === Number) {
+
+                }
+            }
+        }
+    },
+
+    _validate: function(userInputs, defaults){
+        
+        userInputs = userInputs || {};
+        var validatedOutput = {};
+        utils.extend(validatedOutput, userInputs);
+
+        for (key of Object.keys(defaults)){
+
+            //make sure required params are present
+            if (defaults[key] === null && !userInputs[key]) {
+                console.error(key + ' is required')
+                return;
+            }
+
+            else validatedOutput[key] = userInputs[key] || defaults[key]
+        }
+
+        return validatedOutput
+    },
+
+    exposedMethods: ['projectToWorld', 'projectedUnitsPerMeter', 'extend', 'unprojectFromWorld']
 }
 
 module.exports = exports = utils

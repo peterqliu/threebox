@@ -8,7 +8,8 @@ function AnimationManager(map) {
     this.map = map
     this.enrolledObjects = [];    
     this.previousFrameTime;
-}
+
+};
 
 AnimationManager.prototype = {
 
@@ -21,46 +22,65 @@ AnimationManager.prototype = {
         // Give this object its own internal animation queue
         obj.animationQueue = [];
 
-        obj.set = function(state, options) {
+        obj.set = function(options) {
 
             //if duration is set, animate to the new state
-            if ( options && options.duration > 0 ){
+            if (options.duration > 0 ){
+
+                var newParams = {
+                    start: Date.now(),
+                    expiration: Date.now() + options.duration,
+                    endState: {}
+                }
+
+                utils.extend(options, newParams);
+
+                var translating = options.coords;
+                var rotating = options.rotation;
+                var scaling = options.scale || options.scaleX || options.scaleY || options.scaleZ;
+
+                if (rotating) {
+                    
+                    var r = obj.rotation;
+                    options.startRotation = [r.x, r.y, r.z];
+
+
+                    options.endState.rotation = utils.types.rotation(options.rotation, options.startRotation);
+                    options.rotationPerMs = options.endState.rotation
+                        .map(function(angle, index){
+                            return (angle-options.startRotation[index])/options.duration;
+                        })
+                }
+
+                if (scaling) {
+                    var s = obj.scale;
+                    options.startScale = [s.x, s.y, s.z];
+                    options.endState.scale = utils.types.scale(options.scale, options.startScale);
+                    console.log(options)
+                    options.scalePerMs = options.endState.scale
+                        .map(function(scale, index){
+                            return (scale-options.startScale[index])/options.duration;
+                        })                    
+                }
+
+                if (translating) options.path = new THREE.CatmullRomCurve3(utils.lnglatsToWorld([obj.coordinates, options.coords]));
+
                 var entry = {
                     type:'set',
-                    parameters: {
-                        start: Date.now(),
-                        expiration: Date.now()+options.duration,
-                        duration: options.duration
-                    }
+                    parameters: options
                 }
 
-                if (state.rotation) {
-                    var c = obj.rotation
-                    entry.parameters.startRotation = [c.x, c.y, c.z];
-                    entry.parameters.rotationPerMs = ['x', 'y', 'z'].map(function(dimension, index){
-                        return (utils.radify(state.rotation[dimension])-c[dimension])/(options.duration);
-                    })
-                }
-
-                if (state.position) {
-                    entry.parameters.path = new THREE.CatmullRomCurve3(utils.lnglatsToWorld([obj.coordinates, state.position]));
-                }
-
-                window.entry = entry
                 this.animationQueue
                     .push(entry);
 
                 map.repaint = true;   
             }
 
-
-            //if no duration set, stop existing animations and go to that state immediately
+            //if no duration set, stop object's existing animations and go to that state immediately
             else {
-
                 this.stop();
-                state.rotation = utils.radify(state.rotation);
-                this._setObject(state);
-
+                options.rotation = utils.radify(options.rotation);
+                this._setObject(options);
             }
 
             return this
@@ -72,39 +92,27 @@ AnimationManager.prototype = {
             return this;
         }
 
-        obj.setSpeed = function(options){
-            var now = now;
-            if (options.duration) options.expiration = now + options.duration;
-            var animationEntry = {object:this, type: 'continuous', parameters:options};
-
-            this.animationQueue.push({type: 'continuous', parameters:options});
-
-            return this
-
-        };
-
         obj.followPath = function (coordinates, options){
-
+            
             var path = utils.lnglatsToWorld(coordinates);
             path = new THREE.CatmullRomCurve3(path);
 
-
             options = options || {};
 
-            var entry = {
-                type: 'followPath', 
-                parameters: {
-                    start: Date.now(), 
-                    expiration: Date.now() + options.duration,
-                    path: path
-                }
-            };
+            options.start = Date.now();
+            options.path = path;
+            options.expiration = options.start + options.duration;
 
             // apply options or the default value
             Object.keys(defaults.followPath)
                 .forEach(function(key){
-                    entry.parameters[key] = options[key] || defaults.followPath[key]
+                    if (options[key] === undefined) options[key] = defaults.followPath[key];
                 })
+
+            var entry = {
+                type: 'followPath', 
+                parameters: options
+            };
 
             this.animationQueue
                 .push(entry);
@@ -114,38 +122,11 @@ AnimationManager.prototype = {
             return this;
         };
 
-        obj.circlePoint = function(options){
-
-            // radius, duration, start angle
-            options.start = now;
-
-            var entry = {
-                type: 'circle',
-                parameters: options
-            }
-
-            this.animationQueue
-                .push(entry);
-
-            return this;
-        }
-
-        obj.rotateTo = function(xyz) {
-
-            var degrees = [xyz.x, xyz.y, xyz.z];
-            var radians = degrees.map(function(deg){
-                return utils.radify(deg)
-            })
-
-            var options = {rotation:{x: radians[0], y: radians[1], z: radians[2]}}
-
-            this._setObject(options)
-        }
-
         obj._setObject = function (options){
 
             var p = options.position; // lnglat
             var r = options.rotation; // radians
+            var s = options.scale; // 
             var w = options.worldCoordinates; //Vector3
             var q = options.quaternion // [axis, angle]
 
@@ -155,14 +136,16 @@ AnimationManager.prototype = {
                 this.position.copy(c)
             }
 
-            if (q) this.quaternion.setFromAxisAngle(q[0], q[1])
-            if (r) this.rotation.set(r[0], r[1], r[2])
+            if (r) this.rotation.set(r[0], r[1], r[2]);
+            
+            if (s) this.scale.set(s[0], s[1], s[2]);
+            
+            if (q) this.quaternion.setFromAxisAngle(q[0], q[1]);
+            
             if (w) this.position.copy(w);
 
             map.repaint = true
-
         }
-
     },
 
     update: function(now) {
@@ -183,7 +166,7 @@ AnimationManager.prototype = {
             var options = item.parameters;
 
             // if an animation is past its expiration date, cull it
-            if (options.expiration<now) {
+            if (!options.expiration) {
                 console.log('culled')
 
                 object.animationQueue.splice(0,1);
@@ -194,91 +177,74 @@ AnimationManager.prototype = {
                 return
             }
 
-            // var sinceLastTick = (now-this.previousFrameTime)/1000;
+            //if finished, jump to end state and flag animation entry for removal next time around
+            var expiring = now >= options.expiration;
 
-            if (item.type === 'set'){
-
-                var timeProgress = now - options.start;
-                var objectState = {};
-
-                if (options.path) {
-                    var timeFrame = Math.min(now - options.start, options.duration-1);
-                    objectState.worldCoordinates = options.path.getPoint(timeFrame/options.duration);
-                }
-
-                if (options.rotationPerMs) {
-                    objectState.rotation = options.startRotation.map(function(rad, index){
-                        return rad+options.rotationPerMs[index]*timeProgress
-                    })
-                }
-
-                object._setObject(objectState);
-
+            if (expiring) {
+                options.expiration = false;
+                if (options.endState) object._setObject(options.endState);
             }
 
-            // handle continuous animations
-            // if (item.type === 'continuous'){
+            else {
 
-            //     if (options.position){
+                var timeProgress = (now - options.start) / options.duration;
 
-            //         object.translateX(options.position[0]/sinceLastTick);
-            //         object.translateY(options.position[1]/sinceLastTick);
-            //         object.translateZ(options.position[2]/sinceLastTick);
+                if (item.type === 'set'){
 
-            //     }
+                    var objectState = {};
 
-            //     if (options.rotation){
+                    if (options.path) objectState.worldCoordinates = options.path.getPoint(timeProgress);
 
-            //         object.rotateX(options.rotation[0]/sinceLastTick);
-            //         object.rotateY(options.rotation[1]/sinceLastTick);
-            //         object.rotateZ(options.rotation[2]/sinceLastTick);
+                    if (options.rotationPerMs) {
+                        objectState.rotation = options.startRotation.map(function(rad, index){
+                            return rad + options.rotationPerMs[index] * timeProgress * options.duration
+                        })
+                    }
 
-            //     }
-            // }
+                    if (options.scalePerMs) {
+                        objectState.scale = options.startScale.map(function(scale, index){
+                            return scale + options.scalePerMs[index]*timeProgress * options.duration
+                        })
+                    }
 
-            if (item.type === 'followPath'){
+                    object._setObject(objectState);
+                }
 
-                var timeFrame = Math.min(now - options.start, options.duration-1);
+                if (item.type === 'followPath'){
 
-                var position = options.path.getPointAt(timeFrame/options.duration);
-                objectState = {worldCoordinates: position};
+                    var position = options.path.getPointAt(timeProgress);
+                    objectState = {worldCoordinates: position};
 
-                // if we need to track heading
-                if (options.trackHeading){
+                    // if we need to track heading
+                    if (options.trackHeading){
+                        var tangent = options.path.getTangentAt(timeProgress).normalize();
+                        var axis = new THREE.Vector3(0,0,0);
+                        var up = new THREE.Vector3(0,1,0);
+                        axis.crossVectors(up, tangent).normalize();
 
-                    var nextPos = options.path.getPointAt((timeFrame+1)/options.duration);
-                    var tangent = options.path.getTangentAt(timeFrame/options.duration).normalize();
+                        var radians = Math.acos(up.dot(tangent));
 
-                    var axis = new THREE.Vector3(0,0,0);
-                    var up = new THREE.Vector3(0,1,0);
-                    axis.crossVectors(up, tangent).normalize();
+                        objectState.quaternion = [axis, radians];
 
-                    var radians = Math.acos(up.dot(tangent));
+                    }
 
-                    objectState.quaternion = [axis, radians];
+                    object._setObject(objectState);
 
                 }
 
-                object._setObject(objectState);
+                // if (item.type === 'circle'){
 
-                //if finished, flag this for removal next time around
-                if (now >= options.expiration) options.expiration = now;
+                //     var timeProgress = (now-options.start) / 1000;
+                //     var period = options.period;
+                //     var radius = options.radius;
+                //     var center = options.center;
 
-
-            }
-
-            if (item.type === 'circle'){
-
-                var timeProgress = (now-options.start) / 1000;
-                var period = options.period;
-                var radius = options.radius;
-                var center = options.center;
-
-                var angle = utils.radify((360 * timeProgress / period) );
-                var destination = turf.destination(center, radius/1000, angle, 'kilometers');
-                var coords = destination.geometry.coordinates;
-                coords[2] = 500;
-                object._setObject({position:coords, rotation:[0,0,angle/100]})
+                //     var angle = utils.radify((360 * timeProgress / period) );
+                //     var destination = turf.destination(center, radius/1000, angle, 'kilometers');
+                //     var coords = destination.geometry.coordinates;
+                //     coords[2] = 500;
+                //     object._setObject({position:coords, rotation:[0,0,angle/100]})
+                // }
             }
 
         }
@@ -289,9 +255,8 @@ AnimationManager.prototype = {
 
 const defaults = {
     followPath: {
-        duration: 1000,
-        trackHeading: true,
-        turnSpeed: utils.radify(3600)   
+        // duration: 1000,
+        trackHeading: true
     }
 }
 module.exports = exports = AnimationManager;

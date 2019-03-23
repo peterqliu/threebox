@@ -22,10 +22,17 @@ Rerender the threebox scene. Fired in the custom layer's `onRender` function, an
 
 Set up some default lights. If you don't call this and don't set up your own lights, all objects added to the scene will appear black.
 
+## Coordinate systems (especially if you're new to map projections)
+
+Like most web maps, Threebox uses the Mercator projection to visualize a round planet as square. In a nutshell, the projection gradually stretches objects near the poles, such that they become visually exaggerated over similarly-sized objects at the equator.
+
+Threebox renders the world in a square space 1,024,000 units to each side; that's roughly 40 meters per unit, at the equator. But thanks to the projection, that becomes only 25 meters per unit at London's latitude, and 35 meters around Johannesbu
+
 
 ## Common types
 
 ###Geometry
+
 ####lnglat
 
 An array of 2-3 numbers representing longitude, latitude, and optionally altitude (in meters). When altitude is omitted, it is assumed to be 0. When populating this from a GeoJSON Point, this array can be accessed at `point.geometry.coordinates`.  
@@ -40,22 +47,24 @@ An array of at least two lnglat's, forming a line. When populating this from a G
 
 An angle of rotation, in radians. 
 
-###Objects
 
-####material
 
-A [Three.js material](https://threejs.org/docs/#api/en/materials/Material) for constructing objects. One of MeshBasicMaterial, MeshDepthMaterial, MeshLambertMaterial, MeshNormalMaterial, MeshPhongMaterial, MeshPhysicalMaterial, MeshStandardMaterial.
-
-####color
-Hexadecimal, or predefined HTML color names.
 
 ## Objects
 
 Threebox offers convenience functions to construct various three-dimensional geometric primitives in Three. Under the hood, they invoke a subclass of [THREE.Object3D](https://threejs.org/docs/#api/en/core/Object3D) class
 
+###Shared parameters
+
+| parameter | required | default | type   | description                                                                                  |
+|-----------|----------|---------|--------|----------------------------------------------------------------------------------------------|
+| material    | no       | `MeshBasicMaterial`      | string | A [Three.js material](https://threejs.org/docs/#api/en/materials/Material) used for the object. |
+| color     | no       | `black`   | Hexadecimal, or predefined HTML color names.  | Color of the object.  
+| scaleToLatitude    | no       | `false`      | boolean | Whether to scale the object to the latitude position, so that it appears to scale with the rest of the map. If true, will interpret distances as units of **meters**, and apply the proper scale factor given its current position. If **false**, will interpret distances as simple Three.js scene units. `false` recommended in situations where animation performance is critical, and is limited to a small area. | 
+
 ###threebox.line(options)
 
-Calls `THREE.Line` internally via `THREE.CatmullRomCurve3`.
+Calls `THREE.Line` internally, via `THREE.CatmullRomCurve3` geometry.
 
 ####options
 
@@ -75,7 +84,8 @@ Extrude a tube along a specific line, with an equilateral polygon as cross secti
 
 | parameter | required | default | type   | description                                                                                  |
 |-----------|----------|---------|--------|----------------------------------------------------------------------------------------------|
-| radius    | no       | 20      | number | Radius of sphere. If positioned with `scaleToLatitude:true`, will render as 1 unit = 1 meter, as defined at the tube's first coordinate|
+| geometry    | yes       | NA      | line | Array of lnglat coordinates forming the backbone of the tube|
+| radius    | no       | 20      | number | Radius of sphere. If positioned with `scaleToLatitude:true`, will render as 1 unit = 1 meter, as defined at the tube's center|
 | segments  | no       | 8       | number | Number of facets along the extrusion. The higher the number, the more closely the tube will approximate a smooth cylinder.         |
 | color     | no       | black   | color  | Color of sphere.                                                                             
 | material     | no       | MeshLambertMaterial   | material  | THREE material type to use.    
