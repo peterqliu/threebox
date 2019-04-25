@@ -464,6 +464,7 @@ Deps.prototype.walk = function (id, parent, cb) {
                 var current = {
                     id: file,
                     filename: file,
+                    basedir: path.dirname(file),
                     paths: self.paths,
                     package: pkg,
                     inNodeModules: parent.inNodeModules || !isTopLevel

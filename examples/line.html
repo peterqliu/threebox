@@ -1,0 +1,110 @@
+<!doctype html>
+<head>
+	<title>Line Example</title>
+	<script src="../dist/threebox.js" type="text/javascript"></script>
+	<script src="config.js"></script>
+
+	<script src='https://api.mapbox.com/mapbox-gl-js/v0.53.0/mapbox-gl.js'></script>
+	<link href='https://api.mapbox.com/mapbox-gl-js/v0.53.0/mapbox-gl.css' rel='stylesheet' />
+	<style>
+			body, html { 
+				width: 100%;
+				height: 100%;
+				margin: 0;
+				background:black;
+			}
+			#map { 
+				width: 100%;
+				height: 100%;
+			}
+	</style>
+</head>
+<body>
+	<div id='map' class='map'></div>
+
+	<script>
+
+
+		// this demo generates lineGeometry for 50 lines, and adds them as lines to the map with random widths, and colors based on latitudes of their unique endpoints
+
+		if(!config) console.error("Config not set! Make a copy of 'config_template.js', add in your access token, and save the file as 'config.js'.");
+		
+		mapboxgl.accessToken = config.accessToken;
+
+		var map = new mapboxgl.Map({
+			container: 'map',
+			style: 'mapbox://styles/mapbox/dark-v9',
+			zoom: 2,
+			pitch:45
+		});
+
+		// randomly generate some line arcs (not essential for understanding this demo)
+		
+		var lines = new Array();
+		var arcSegments = 25;
+		var lineQuantity = 50;
+
+		for (var i = 0; i < lineQuantity; i++){
+
+			var line = new Array();
+			var destination = [300*(Math.random()-0.5), 140*(Math.random()-0.5)];
+			var maxElevation = Math.pow(Math.abs(destination[0]*destination[1]), 0.5) * 80000;
+
+			var increment = destination.map(function(direction){
+				return direction/arcSegments;
+			})
+
+			for (var l = 0; l<=arcSegments; l++){
+				var waypoint = increment.map(function(direction){
+					return direction * l
+				})
+
+				var waypointElevation = Math.sin(Math.PI*l/arcSegments) * maxElevation;
+
+				waypoint.push(waypointElevation);
+				line.push(waypoint);
+			}
+
+			lines.push(line)
+		}
+
+		console.log('lineGeometries of the lines: ', lines);
+
+		// instantiate threebox
+
+		map.on('style.load', function() {
+
+			map.addLayer({
+				id: 'custom_layer',
+				type: 'custom',
+				onAdd: function(map, mbxContext){
+
+					tb = new Threebox(
+						map, 
+						mbxContext,
+						{defaultLights: true}
+					);
+
+					for (line of lines) {
+						var lineOptions = {
+							geometry: line,
+							color: (line[1][1]/180) * 0xffffff, // color based on latitude of endpoint
+							width: Math.random() + 1 // random width between 1 and 2
+						}
+
+						lineMesh = tb.line(lineOptions);
+
+						tb.add(lineMesh)
+					}
+
+				},
+				
+				render: function(gl, matrix){
+						tb.update();
+				}
+			});
+		});
+
+
+	</script>
+</body>

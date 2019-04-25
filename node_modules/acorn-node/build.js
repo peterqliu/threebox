@@ -19,4 +19,3 @@ function compile (name, output) { // eslint-disable-line no-unused-vars
 
 compile('acorn-bigint', './lib/bigint/index.js')
 compile('acorn-import-meta', './lib/import-meta/index.js')
-compile('./lib/dynamic-import/source', './lib/dynamic-import/index.js')

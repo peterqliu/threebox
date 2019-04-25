@@ -3,8 +3,8 @@ var xtend = require('xtend')
 
 var CJSParser = acorn.Parser
   .extend(require('./lib/bigint'))
+  .extend(require('acorn-dynamic-import').default)
 var ESModulesParser = CJSParser
-  .extend(require('./lib/dynamic-import'))
   .extend(require('./lib/import-meta'))
 
 function mapOptions (opts) {

@@ -2,6 +2,9 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## 6.2.0 - 2018-11-13
+* Add `.dirname` property to the object given to `opts.resolve` [#154](https://github.com/browserify/module-deps/pull/154)
+
 ## 6.1.0 - 2018-05-16
 * Add a `detect` option for custom dependency detection [#63](https://github.com/browserify/module-deps/pull/63), [2dcc339](https://github.com/browserify/module-deps/commit/2dcc3399ee67ba51ed26d9a0605a8ccdc70c9db7)
 

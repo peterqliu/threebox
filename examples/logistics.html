@@ -1,0 +1,151 @@
+<!doctype html>
+<head>
+	<title>Animated truck</title>
+	<script src="../dist/threebox.js" type="text/javascript"></script>
+	<script src="config.js"></script>
+	<script src='https://api.mapbox.com/mapbox-gl-js/v0.50.0/mapbox-gl.js'></script>
+	<link href='https://api.mapbox.com/mapbox-gl-js/v0.50.0/mapbox-gl.css' rel='stylesheet' />
+	<script src="https://d3js.org/d3.v5.min.js"></script>
+	<style>
+		body, html { 
+			width: 100%;
+			height: 100%;
+			margin: 0;
+			background:black;
+		}
+		#map { 
+			width: 100%;
+			height: 100%;
+		}
+		#explainer {
+			z-index:99;
+		}
+	</style>
+</head>
+<body>
+	<div id='map' class='map'></div>
+	<div id='explainer'>Click on the map to drive the truck there</div>
+	<script>
+
+
+		// This example downloads a truck model from an external OBJ/MTL file, adds it to the map, and drives it around via paths fetched from the Mapbox Directions API
+
+		if(!config) console.error("Config not set! Make a copy of 'config_template.js', add in your access token, and save the file as 'config.js'.");
+		
+		mapboxgl.accessToken = config.accessToken;
+
+		var origin = [-122.4340, 37.7353];
+		var destination, line;
+		var truck;
+
+		var map = new mapboxgl.Map({
+		  container: 'map',
+		  style: 'mapbox://styles/mapbox/dark-v9',
+		  center: origin,
+		  zoom: 16,
+		  pitch:60,
+		  bearing:90
+		});
+
+		map.on('style.load', function() {
+
+			map
+			.addLayer({
+				id: 'custom_layer',
+				type: 'custom',
+				renderingMode: '3d',
+				onAdd: function(map, mbxContext){
+
+					window.tb = new Threebox(
+						map, 
+						mbxContext,
+						{defaultLights: true}
+					);
+
+					// import truck from an external obj file, scaling up its size 10x
+					var options = {
+						obj: 'models/Truck.obj',
+						mtl: 'models/Truck.mtl',
+						scale: 10
+					}
+
+					tb.loadObj(options, function(model) {
+
+						truck = model.setCoords(origin);
+						tb.add(truck);                        
+					})
+
+				},
+				
+				render: function(gl, matrix){
+					tb.update();
+				}
+			});
+		})
+		.on('click', function(e){
+			var pt = [e.lngLat.lng, e.lngLat.lat];
+			travelPath(pt);
+		})
+
+
+		function travelPath(destination){
+
+			// request directions. See https://docs.mapbox.com/api/navigation/#directions for details
+
+			var url = "https://api.mapbox.com/directions/v5/mapbox/driving/"+[origin, destination].join(';')+"?geometries=geojson&access_token=" + config.accessToken
+
+
+			fetchFunction(url, function(data){
+
+				// extract path geometry from callback geojson, and set duration of travel
+				var options = {
+					path: data.routes[0].geometry.coordinates,
+					duration: 10000
+				}
+
+				// start the truck animation with above options, and remove the line when animation ends
+				truck.followPath(
+					options,
+					function() {
+						tb.remove(line);
+					}
+				);
+
+				// set up geometry for a line to be added to map, lofting it up a bit for *style*
+				var lineGeometry = options.path
+					.map(function(coordinate){
+						return coordinate.concat([15])
+					})
+
+				// create and add line object
+				line = tb.line({
+					geometry: lineGeometry,
+					width: 5,
+					color: 'steelblue'
+				})
+
+				tb.add(line);
+
+				// set destination as the new origin, for the next trip
+				origin = destination;
+
+			})
+		}
+		
+		//convenience function for fetch
+
+		function fetchFunction(url, cb) {
+			fetch(url)
+				.then(
+					function(response){
+						if (response.status === 200) {
+							response.json()
+								.then(function(data){
+									cb(data)
+								})
+						}
+					}
+				)
+		}
+	</script>
+</body>

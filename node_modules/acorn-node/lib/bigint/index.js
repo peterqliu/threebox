@@ -7,7 +7,7 @@ var tt = acorn.tokTypes
 var isIdentifierStart = acorn.isIdentifierStart
 
 module.exports = function(Parser) {
-  return (function (Parser) {
+  return /*@__PURE__*/(function (Parser) {
     function anonymous () {
       Parser.apply(this, arguments);
     }
@@ -55,7 +55,7 @@ module.exports = function(Parser) {
       }
 
       var str = this.input.slice(start, this.pos)
-      var val = typeof BigInt !== "undefined" && BigInt.parseInt ? BigInt.parseInt(str) : null
+      var val = typeof BigInt !== "undefined" ? BigInt(str) : null
       ++this.pos
       return this.finishToken(tt.num, val)
     };

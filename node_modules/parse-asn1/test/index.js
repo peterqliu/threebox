@@ -71,6 +71,10 @@ var cert = {
   private: fs.readFileSync(__dirname + '/rsa.1024.priv'),
   public: fs.readFileSync(__dirname + '/node.cert')
 }
+var cert2 = {
+  private: fs.readFileSync(__dirname + '/cert.priv'),
+  public: fs.readFileSync(__dirname + '/cert.pub')
+}
 var i = 0
 function testIt (keys) {
   test('key ' + (++i), function (t) {
@@ -78,33 +82,6 @@ function testIt (keys) {
     t.ok(parseKey(keys.public), 'public key')
     t.ok(parseKey(keys.private), 'private key')
   })
-}
-
-function testEOL (keys) {
-  var publicKey = keys.public.toString()
-  var newLineRegex = /\r?\n/g
-  var genPrivate = function (replace) {
-    if (keys.private.key) {
-      return { key: keys.private.key.toString().replace(newLineRegex, replace), passphrase: keys.private.passphrase }
-    } else {
-      return keys.private.toString().replace(newLineRegex, replace)
-    }
-  }
-  var testN = {
-    private: genPrivate('\n'),
-    public: publicKey.replace(newLineRegex, '\n')
-  }
-  testIt(testN)
-  var testR = {
-    private: genPrivate('\r'),
-    public: publicKey.replace(newLineRegex, '\r')
-  }
-  testIt(testR)
-  var testRN = {
-    private: genPrivate('\r\n'),
-    public: publicKey.replace(newLineRegex, '\r\n')
-  }
-  testIt(testRN)
 }
 
 testIt(dsa)
@@ -121,18 +98,4 @@ testIt(rsapass2)
 testIt(pass1024)
 testIt(pass1024)
 testIt(cert)
-
-testEOL(dsa)
-testEOL(dsa2)
-testEOL(rsa1024)
-testEOL(ec)
-testEOL(rsa2028)
-testEOL(nonrsa1024)
-testEOL(ecpass)
-testEOL(dsapass)
-testEOL(dsapass2)
-testEOL(rsapass)
-testEOL(rsapass2)
-testEOL(pass1024)
-testEOL(pass1024)
-testEOL(cert)
+testIt(cert2)

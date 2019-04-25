@@ -1,62 +1,237 @@
-# Docs
+# Documentation
+---
+## Background
 
-Set up and handle the core translations between a Three.js scenegraph and the Mapbox GL JS map. 
+Threebox works by adding a Three.js scene to Mapbox GL, via a custom layer. The custom layer API takes a fair amount of finessing to be useful, and Threebox tackles several hurdles to getting THREE and Mapbox to work together. 
 
-For users of earlier Threebox versions, this is a major refactor with breaking changes, but also significant performance gains.
+<br>
 
+## Setup
 
-##Setup
-
-`var threebox = new Threebox(map, mapboxGLContext)`
+`var tb = new Threebox(map, mapboxGLContext[, options])`
 
 Sets up a threebox scene inside a [Mapbox GL custom layer's onAdd function](https://www.mapbox.com/mapbox-gl-js/api/#customlayerinterface), which provides both inputs for this method. Automatically synchronizes the camera movement and events between Three.js and Mapbox GL JS. 
 
-`threebox.update(skipMapRepaint)`
+| option | required | default | type   | purpose                                                                                  |
+|-----------|----------|---------|--------|----------------------------------------------------------------------------------------------|
+| `defaultLights`    | no       | false      | boolean | Whether to add some default lighting to the scene. If no lighting added, most objects in the scene will render as black |
+| `passiveRendering`     | no       | true   | boolean  | Color of line. Unlike other Threebox objects, this color will render on screen precisely as specified, regardless of scene lighting |
+                                                              
 
-Rerender the threebox scene. Fired in the custom layer's `onRender` function, and whenever the threebox scene changes (animations, adding/removing objects, etc). `skipMapRepaint = false` for all rerenders triggered by scene-related changes.
+`tb.update()`
 
-`threebox.setupDefaultLights()`
-
-Set up some default lights. If you don't call this and don't set up your own lights, all objects added to the scene will appear black.
+Rerender the threebox scene. Fired in the custom layer's `render` function.
 
 
-##Handling objects
+<br>
 
-`threebox.addAtCoordinate(object, position, options)`
+# Objects
 
-Manually add a Three.js `Object3D` to your map.
+Threebox offers convenience functions to construct meshes of various Three.js meshes, as well asl . Under the hood, they invoke a subclass of [THREE.Object3D](https://threejs.org/docs/#api/en/core/Object3D). 
 
-- `object` - any Three.js `Object3D` to add to the map
+Objects in Threebox fall under two broad varieties. *Static objects* don't move or change once they're placed, and used usually to display background or geographical features. They may have complex internal geometry, which are expressed primarily in lnglat coordinates. 
 
-- `position` - An `array` containing [`longitude`, `latitude`, `altitude`] specifying where the object will be added. The units of `altitude` depend on the value of the `scaleToLatitude` option (see below).
+In contrast, *dynamic objects* can move around the map, positioned by a single lnglat point. Their internal geometries are produced mainly in local scene units, whether through external obj files, or these convenience methods below.
 
-- `options` (_optional_) - An object containing the following properties:
-	- `options.scaleToLatitude` (_optional, defaults to `true`_) - Because of distortion introduced by the Mercator map projection, objects of the same physical size appear larger on the map the further they are north or south of the equator. If `scaleToLatitude` is set to `true`, the objects units will be interpreted as `meters` and the scene graph object will be automatically scaled to appear correctly at its latitude on the map. If set to `false`, the objects units will be used directly in the threebox scenegraph.
-	
-	- `options.preScale` (_optional, defaults to `1.0`_) - If `scaleToLatitude` is `true`, `preScale` can be used to set a fixed scale factor to adjust the object's size regardless of geographic location.
+##Static objects
 
-`threebox.moveToCoordinate(object, position, options)`
+###Line 
 
-Move an object to a new longitude/latitude/altitude position on the map. Parameters are the same as with `options.addAtCoordinate` above. If `scaleToLatitude` is set to `true`, the object will automatically be correctly re-sized to its new position.
+`tb.line(options)`
 
-`threebox.remove(object)`
+Adds a line to the map, in full 3D space. Color renders independently of scene lighting. Internally, calls a [custom line shader](https://threejs.org/examples/?q=line#webgl_lines_fat).
 
-Remove an object from the map.
 
+| option | required | default | type   | purpose                                                                                  |
+|-----------|----------|---------|--------|----------------------------------------------------------------------------------------------|
+| `geometry`    | yes       | NA      | lineGeometry | Array of lnglat coordinates to draw the line |
+| `color`     | no       | black   | color  | Color of line. Unlike other Threebox objects, this color will render on screen precisely as specified, regardless of scene lighting |
+| `width`     | no       | 1   | number  | Line width. Unlike other Threebox objects, this width is in units of display pixels, rather than meters or scene units. |
+| `opacity`     | no       | 1   | Number  | Line opacity |                                                                       
+
+
+<br>
+
+###Tube
+
+`tb.tube(options)`
+
+Extrude a tube along a specific lineGeometry, with an equilateral polygon as cross section. Internally uses a custom tube geometry generator.
+
+
+| option | required | default | type   | description                                                                                  |
+|-----------|----------|---------|--------|----------|
+| `geometry`    | yes       | NA      | lineGeometry | Line coordinates forming the tube backbone |
+| `radius`    | no       | 20      | number | Radius of the tube cross section, or half of tube width.|
+| `sides`  | no       | 8       | number | Number of facets along the tube. The higher, the more closely the tube will approximate a smooth cylinder. |
+| `material`     | no       | MeshLambertMaterial   | threeMaterial  | [THREE material](https://github.com/mrdoob/three.js/tree/master/src/materials) to use. Can be invoked with a text string, or a predefined material object via THREE itself.|   
+| `color`     | no       | black   | color  | Tube color. Ignored if `material` is a predefined `THREE.Material` object.  |
+| `opacity`     | no       | 1   | Number  | Tube opacity |                                                                                                                                                   
+
+
+<br>
+##Dynamic objects
+
+<br>
+
+###Sphere
+
+`tb.sphere(options)`
+
+Add a sphere to the map. Internally, calls `THREE.Mesh` with a `THREE.SphereGeometry`.
+
+
+| option | required | default | type   | description                                                                                  |
+|-----------|----------|---------|--------|-------|
+| `radius`    | no       | 50      | number | Radius of sphere. |
+| `units`    | no       | scene      | string ("scene" or "meters") | Units with which to interpret `radius`. If meters, Threebox will also rescale the object with changes in latitude, to appear to scale with objects and geography nearby.|
+| sides  | no       | 8       | number | Number of width and height segments. The higher the number, the smoother the sphere. |
+| color     | no       | black   | color  | Color of sphere.                                                                             
+| `material`     | no       | MeshLambertMaterial   | threeMaterial  | [THREE material](https://github.com/mrdoob/three.js/tree/master/src/materials) to use. Can be invoked with a text string, or a predefined material object via THREE itself.|   
+
+<br>
+
+###External OBJ object
+
+`threebox.loadObj(options, callback(obj))`
+
+Loads an object via an external .obj and .mtl file. Note that unlike all the other object classes, this is asynchronous, and returns the object as an argument of the callback function. Internally, uses `THREE.OBJLoader` to fetch the .obj assets.
+
+
+| option | required | default | type   | description                                                                                  |
+|-----------|----------|---------|--------|------------|
+| `obj`  | yes       | NA       | string | URL path to asset's .obj file |
+| `mtl`  | yes       | NA       | string | URL path to asset's .mtl file |
+| `units`    | no       | scene      | string ("scene" or "meters") | Units with which to interpret the object's vertices. If meters, Threebox will also rescale the object with changes in latitude, to appear to scale with objects and geography nearby.|
+| `rotation`     | no       | 0   | rotationTransform  | Rotation of the object along the three axes, to align it to desired orientation before future rotations. Note that future rotations apply atop this transformation, and do not overwrite it. |
+| `scale`     | no       | 1   | scaleTransform  | Scale of the object along the three axes, to size it appropriately before future transformations. Note that future scaling applies atop this transformation, rather than overwriting it.|
+| `callback`     | yes       | NA   | function  | A function to run after the object loads. The first argument will be the successfully loaded object.
+                                                   
+<br>
+###Object3D
+
+`threebox.Object3D(obj)`
+
+Add a `THREE.Object3D` instantiated elsewhere in THREE, to empower it with Threebox methods below. Unnecessary for objects instantiated with any methods above.
+
+| option | required | default | type   | description                                                                                  |
+|-----------|----------|---------|--------|------------|
+| `units`    | no       | scene      | string ("scene" or "meters") | Units with which to interpret the object's vertices. If meters, Threebox will also rescale the object with changes in latitude, to appear to scale with objects and geography nearby.|
+
+
+
+###Shared methods between dynamic objects
+
+`obj.setCoords(lnglat)`
+
+Positions the object at the desired coordinate, and resizes it appropriately if it was instantiated with `units: "meters"`. Can be called before adding object to the map.
+
+`obj.set(options)`
+
+Broad method to update object's position, rotation, and scale. Check out the Threebox Types section below for details
+
+Options
+
+| option | required | default | type   | description                                                                                  |
+|-----------|----------|---------|--------|------------|
+| `coords`    | no       | NA      | `lnglat` | Position to which to move the object |
+| `rotation`    | no       | NA      | `rotationTransform` | Rotation(s) to set the object, in units of degrees |
+| `scale`    | no       | NA      | `scaleTransform` | Scale(s) to set the object, where 1 is the default scale |
+
+`obj.followPath(options(, callback) )`
+
+Translate object along a specified path. Optional callback function to execute when animation finishes
+
+| option | required | default | type   | description                                                                                  |
+|-----------|----------|---------|--------|------------|
+| `path`    | yes       | NA      | lineGeometry | Path for the object to follow |
+| `duration`    | no       | 1000      | number | Duration to travel the path, in milliseconds |
+| `trackHeading`    | no       | true      | boolean | Rotate the object so that it stays aligned with the direction of travel, throughout the animation |
+
+
+
+####`obj.stop()`
+
+Stops all of object's current animations.
+
+####`obj.duplicate()`
+
+Returns a clone of the object. Greatly improves performance when handling many identical objects, by reusing materials and geometries.
+
+<br>
 ##Utilities
 
-`threebox.projectToWorld(lnglatalt)`
+`tb.projectToWorld(lnglat)`
 
-Given an input of `lnglatalt` as an `array` of geographic [`longitude`, `latitude`, `altitude`], return a Three.js `Vector3` representing the corresponding point in the scenegraph coordinate system.
+Calculate the corresponding `Vector3` for a given lnglat.
 
-`threebox.unprojectFromWorld(point)`
 
-Given an input of `point` as a Three.js `Vector3` representing a point in the scenegraph coordinate system, return an `array` of the corresponding [`longitude`, `latitude`, `altitude`] in geographic space.
+`tb.unprojectFromWorld(Vector3)`
 
-`threebox.queryRenderedFeatures(xy)`
+Calculate the corresponding lnglat for a given `Vector3`.
 
-Given an input of `xy` as an object with `x` and `y` values representing screen coordinates (as returned by mapboxgl mouse events as `e.point`), return an array of threebox objects at that screen position.
 
-## Examples
+`tb.queryRenderedFeatures({x: number, y: number})`
 
-- [Basic usage](../examples/basic.html)
+Takes an input of `xy` as an object with values representing screen coordinates (as returned by mapboxgl mouse events as `e.point`). Returns an array of threebox objects at that screen position.
+
+<br>
+
+## Threebox types
+
+<b>pointGeometry</b> `[longitude, latitude(, meters altitude)]`
+
+An array of 2-3 numbers representing longitude, latitude, and optionally altitude (in meters). When altitude is omitted, it is assumed to be 0. When populating this from a GeoJSON Point, this array can be accessed at `point.geometry.coordinates`.  
+
+While altitude is not standardized in the GeoJSON specification, Threebox will accept it as such to position objects along the z-axis.   
+
+<br>
+
+####lineGeometry
+
+`[pointGeometry, pointGeometry ... pointGeometry]`
+
+An array of at least two lnglat's, forming a line. When populating this from a GeoJSON Linestring, this array can be accessed at `linestring.geometry.coordinates`. 
+
+<br>
+####rotationTransform
+
+`number` or `{x: number, y: number, z: number}`
+
+Angle(s) in degrees to rotate object. Can be expressed as either an object or number. 
+
+The object form takes three optional parameters along the three major axes: x is parallel to the equator, y parallel to longitudinal lines, and z perpendicular to the ground plane.
+
+The number form rotates along the z axis, and equivalent to `{z: number}`.
+
+<br>
+
+####scaleTransform
+
+`number ` or `{x: number, y: number, z: number}`
+
+Amount to scale the object, where 1 is the default size. Can be expressed as either an object or number.
+
+The three axes are identical to those of `rotationTransform`. However, expressing as number form scales all three axes by that amount.
+
+####threeMaterial
+
+`string` or instance of `THREE.Material()`
+
+Denotes the material used for an object. This can usually be customized further with `color` and `opacity` parameters in the same 
+
+
+Can be expressed as a string to the corresponding material type (e.g. `"MeshPhysicalMaterial"` for `THREE.MeshPhysicalMaterial()`), or a prebuilt THREE material directly.
+
+##Using vanilla Three.js in Threebox
+
+Threebox implements many small affordances to make mapping run in Three.js quickly and precisely on a global scale. Whenever possible, use threebox methods to add, change, manage, and remove elements of the scene. Otherwise, here are some best practices:
+
+- Use `threebox.Object3D` to add custom objects to the scene
+- If you must interact directly with the THREE scene, add all objects to `threebox.world`.
+- `tb.projectToWorld` to convert lnglat to the corresponding `Vector3()`
+
+
+#Performance considerations
+
+- Use `obj.clone()` when adding many identical objects.

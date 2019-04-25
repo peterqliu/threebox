@@ -3,6 +3,7 @@ var bench = require('nanobench')
 var acornsrc = require('fs').readFileSync(require.resolve('acorn'))
 var lodashsrc = require('fs').readFileSync(require.resolve('lodash'))
 var jquerysrc = require('fs').readFileSync(require.resolve('jquery'))
+var threesrc = require('fs').readFileSync(require.resolve('three'))
 var find = require('../')
 
 // Optimize.
@@ -40,5 +41,17 @@ bench('jquery × 1', function (b) {
 bench('jquery × 5', function (b) {
   b.start()
   for (var i = 0; i < 5; i++) find(jquerysrc).properties
+  b.end()
+})
+
+// is very large
+bench('three × 1', function (b) {
+  b.start()
+  find(threesrc).identifiers
+  b.end()
+})
+bench('three × 5', function (b) {
+  b.start()
+  for (var i = 0; i < 5; i++) find(threesrc).identifiers
   b.end()
 })
