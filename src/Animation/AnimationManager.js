@@ -1,7 +1,6 @@
 var threebox = require('../Threebox.js');
-var turf = require("@turf/turf");
-var utils = require("../Utils/Utils.js");
-
+var utils = require("../utils/utils.js");
+var validate = require("../utils/validate.js");
 
 function AnimationManager(map) {
 
@@ -56,14 +55,14 @@ AnimationManager.prototype = {
                     var s = obj.scale;
                     options.startScale = [s.x, s.y, s.z];
                     options.endState.scale = utils.types.scale(options.scale, options.startScale);
-                    console.log(options)
+
                     options.scalePerMs = options.endState.scale
                         .map(function(scale, index){
                             return (scale-options.startScale[index])/options.duration;
                         })                    
                 }
 
-                if (translating) options.path = new THREE.CatmullRomCurve3(utils.lnglatsToWorld([obj.coordinates, options.coords]));
+                if (translating) options.pathCurve = new THREE.CatmullRomCurve3(utils.lnglatsToWorld([obj.coordinates, options.coords]));
 
                 var entry = {
                     type:'set',
@@ -92,27 +91,24 @@ AnimationManager.prototype = {
             return this;
         }
 
-        obj.followPath = function (coordinates, options){
-            
-            var path = utils.lnglatsToWorld(coordinates);
-            path = new THREE.CatmullRomCurve3(path);
-
-            options = options || {};
-
-            options.start = Date.now();
-            options.path = path;
-            options.expiration = options.start + options.duration;
-
-            // apply options or the default value
-            Object.keys(defaults.followPath)
-                .forEach(function(key){
-                    if (options[key] === undefined) options[key] = defaults.followPath[key];
-                })
+        obj.followPath = function (options, cb){
 
             var entry = {
                 type: 'followPath', 
-                parameters: options
+                parameters: utils._validate(options, defaults.followPath)
             };
+                     
+            utils.extend(
+                entry.parameters, 
+                {
+                    pathCurve: new THREE.CatmullRomCurve3(
+                        utils.lnglatsToWorld(options.path)
+                    ),
+                    start: Date.now(),
+                    expiration: Date.now() + entry.parameters.duration,
+                    cb: cb
+                }
+            );    
 
             this.animationQueue
                 .push(entry);
@@ -167,7 +163,7 @@ AnimationManager.prototype = {
 
             // if an animation is past its expiration date, cull it
             if (!options.expiration) {
-                console.log('culled')
+                // console.log('culled')
 
                 object.animationQueue.splice(0,1);
 
@@ -177,12 +173,13 @@ AnimationManager.prototype = {
                 return
             }
 
-            //if finished, jump to end state and flag animation entry for removal next time around
+            //if finished, jump to end state and flag animation entry for removal next time around. Execute callback if there is one
             var expiring = now >= options.expiration;
 
             if (expiring) {
                 options.expiration = false;
                 if (options.endState) object._setObject(options.endState);
+                options.cb();
             }
 
             else {
@@ -193,7 +190,7 @@ AnimationManager.prototype = {
 
                     var objectState = {};
 
-                    if (options.path) objectState.worldCoordinates = options.path.getPoint(timeProgress);
+                    if (options.pathCurve) objectState.worldCoordinates = options.pathCurve.getPoint(timeProgress);
 
                     if (options.rotationPerMs) {
                         objectState.rotation = options.startRotation.map(function(rad, index){
@@ -212,15 +209,22 @@ AnimationManager.prototype = {
 
                 if (item.type === 'followPath'){
 
-                    var position = options.path.getPointAt(timeProgress);
+                    var position = options.pathCurve.getPointAt(timeProgress);
                     objectState = {worldCoordinates: position};
 
                     // if we need to track heading
                     if (options.trackHeading){
-                        var tangent = options.path.getTangentAt(timeProgress).normalize();
+
+                        var tangent = options.pathCurve
+                        .getTangentAt(timeProgress)
+                            .normalize();
+
                         var axis = new THREE.Vector3(0,0,0);
                         var up = new THREE.Vector3(0,1,0);
-                        axis.crossVectors(up, tangent).normalize();
+
+                        axis
+                            .crossVectors(up, tangent)
+                            .normalize();
 
                         var radians = Math.acos(up.dot(tangent));
 
@@ -231,20 +235,6 @@ AnimationManager.prototype = {
                     object._setObject(objectState);
 
                 }
-
-                // if (item.type === 'circle'){
-
-                //     var timeProgress = (now-options.start) / 1000;
-                //     var period = options.period;
-                //     var radius = options.radius;
-                //     var center = options.center;
-
-                //     var angle = utils.radify((360 * timeProgress / period) );
-                //     var destination = turf.destination(center, radius/1000, angle, 'kilometers');
-                //     var coords = destination.geometry.coordinates;
-                //     coords[2] = 500;
-                //     object._setObject({position:coords, rotation:[0,0,angle/100]})
-                // }
             }
 
         }
@@ -255,7 +245,8 @@ AnimationManager.prototype = {
 
 const defaults = {
     followPath: {
-        // duration: 1000,
+        path: null,
+        duration: 1000,
         trackHeading: true
     }
 }

@@ -87,6 +87,13 @@ test('supports dynamic import() with sourceType: module', function (t) {
   t.end()
 })
 
+test('supports dynamic import() with sourceType: script', function (t) {
+  t.doesNotThrow(function () {
+    acorn.parse('import("./whatever.mjs")', { sourceType: 'script' })
+  })
+  t.end()
+})
+
 test('walk supports plugin syntax', function (t) {
   var ast = acorn.parse(
     'async function* a() { try { await import(xyz); } catch { for await (x of null) {} } yield import.meta.url }',

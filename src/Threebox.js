@@ -1,15 +1,20 @@
 var THREE = require("./three.js");
-var CameraSync = require("./Camera/CameraSync.js");
-var utils = require("./Utils/Utils.js");
-var AnimationManager = require("./Animation/AnimationManager.js");
-var Objects = require("./Layers/objects.js");
-var material = require("./Helpers/material.js");
+var CameraSync = require("./camera/CameraSync.js");
+var utils = require("./utils/utils.js");
+var AnimationManager = require("./animation/AnimationManager.js");
+var ThreeboxConstants = require("./utils/constants.js");
 
-var ThreeboxConstants = require("../src/constants.js");
+var Objects = require("./objects/objects.js");
+var material = require("./utils/material.js");
+var sphere = require("./objects/sphere.js");
+var loadObj = require("./objects/loadObj.js");
+var Object3D = require("./objects/Object3D.js");
+var line = require("./objects/line.js");
+var tube = require("./objects/tube.js");
 
-function Threebox(map, glContext){
+function Threebox(map, glContext, options){
 
-    this.init(map, glContext);
+    this.init(map, glContext, options);
 
 };
 
@@ -19,8 +24,7 @@ Threebox.prototype = {
         this.map.repaint = true;
     },
 
-    init: function (map, glContext){
-
+    init: function (map, glContext, options){
 
         this.map = map;
 
@@ -35,10 +39,8 @@ Threebox.prototype = {
         this.renderer.shadowMap.enabled = true;
         this.renderer.autoClear = false;
 
-
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera( 28, window.innerWidth / window.innerHeight, 0.000000000001, Infinity);
-        this.layers = [];
 
         // The CameraSync object will keep the Mapbox and THREE.js camera movements in sync.
         // It requires a world group to scale as we zoom in. Rotation is handled in the camera's
@@ -49,45 +51,35 @@ Threebox.prototype = {
 
         this.cameraSync = new CameraSync(this.map, this.camera, this.world);
 
-        // // make useful methods accessible to user
-        // for (i in utils.exposedMethods){
-        //     var method = utils.exposedMethods[i]
-        //     this[method] = utils[method]
-        // }
-
         //raycaster for mouse events
         this.raycaster = new THREE.Raycaster();
 
+        // apply starter options
+        
+        this.options = utils._validate(options || {}, defaultOptions);
+        if (this.options.defaultLights) this.defaultLights();
+        
     },
 
     // Objects
 
     objects: new Objects(AnimationManager),
 
-    sphere: function(o) {
-        return this.objects.sphere(o)
-    },
+    sphere: sphere,
 
-    line: function(o) {
-        return this.objects.line(o)
-    },
+    line: line,
 
-    tube: function(o) {
-        return this.objects.tube(o)
+    tube: function(obj){
+        return tube(obj, this.world)
     },
 
     Object3D: function(obj, o) {
-        return this.objects.Object3D(obj, o)
+        return Object3D(obj, o)
     },
 
-    loadObj: function(o, cb) {
-        return this.objects.loadObj(o, cb)
-    },
+    loadObj: loadObj,
 
-    // clone: function(obj) {
-    //     return this.objects.clone(obj)
-    // },
-    
+
     // Material
 
     material: function(o){
@@ -95,6 +87,18 @@ Threebox.prototype = {
     },
 
     utils: utils,
+
+    projectToWorld: function(coords) {
+        return this.utils.projectToWorld(coords)
+    },
+
+    unprojectFromWorld: function(v3) {
+        return this.utils.unprojectFromWorld(v3)
+    },
+
+    projectedUnitsPerMeter: function(lat) {
+        return this.utils.projectedUnitsPerMeter(lat)
+    },
 
     queryRenderedFeatures: function(point){
 
@@ -126,69 +130,64 @@ Threebox.prototype = {
         // Render the scene and repaint the map
         this.renderer.render( this.scene, this.camera );
 
+        if (this.options.passiveRendering === false) this.map.triggerRepaint();
     },
 
     add: function(obj) {
-        
-        // var geoGroup = new THREE.Group();
-        // geoGroup.userData.isGeoGroup = true;
-        // geoGroup.add(obj);
-        // this.animationManager.enroll(obj); 
         this.world.add(obj);
+    },
+
+    remove: function(obj) {
+        this.world.remove(obj);
+    },
 
 
-        // this.moveToCoordinate(obj, obj.coordinates, options);
+    defaultLights: function(){
 
+        this.scene.add( new THREE.AmbientLight( 0xffffff ) );
+        var sunlight = new THREE.DirectionalLight(0xffffff, 0.5);
+        sunlight.position.set(0,80000000,100000000);
+        sunlight.matrixWorldNeedsUpdate = true;
+        this.world.add(sunlight);
+
+    },
+
+    memory: function (){ return this.renderer.info.memory},
+
+    version: '0.3.0',
+
+    // DEPRECATED METHODS
+
+    setupDefaultLights: function() {
+        console.warn('.setupDefaultLights() has been moved to a "defaultLights" option inside Threebox()')
+        this.defaultLights();
     },
 
     addAtCoordinate: function(obj, lnglat, options) {
         
-        console.warn('addAtCoordinate() has been deprecated. Check out the Threebox Object3D() method instead.')
+        console.warn('addAtCoordinate() has been deprecated. Check out the and threebox.add() Object.setCoords() methods instead.')
         
-        obj = this.Object3D(obj);
+        obj = this.Object3D({obj:obj});
 
-        obj.setCoords(lnglat, options)
-            .add();
+        obj.setCoords(lnglat)
+        this.add(obj);
 
         return obj;
     },
 
     moveToCoordinate: function(obj, lnglat, options) {
+        console.warn('addAtCoordinate() has been deprecated. Check out the Object.setCoords() and threebox.add() methods instead.')
 
         if (!obj.setCoords) obj = this.Object3D(obj);
         obj.setCoords(lnglat, options);
 
         return obj;
-    },
-
-    addGeoreferencedMesh: function(mesh, options) {
-        /* Place the mesh on the map, assuming its internal (x,y) coordinates are already in (longitude, latitude) format
-            TODO: write this
-        */
-
-    },
-
-    remove: function(obj) {
-
-        console.warn('remove(obj) has been moved inside the object. In the future, call obj.remove() instead')
-
-        if (!obj.remove) obj = this.Object3D(obj);
-
-        obj.remove();
-        
-    },
-
-    setupDefaultLights: function() {
-        this.scene.add( new THREE.AmbientLight( 0xCCCCCC ) );
-
-        var sunlight = new THREE.DirectionalLight(0xffffff, 0.5);
-        sunlight.position.set(0,800,1000);
-        // sunlight.matrixWorldNeedsUpdate = true;
-        this.world.add(sunlight);
-    },
-
-    memory: function (){ return this.renderer.info.memory}
+    }
 }
 
+var defaultOptions = {
+    defaultLights: false,
+    passiveRendering: true
+}
 module.exports = exports = Threebox;
 

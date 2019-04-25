@@ -1,6 +1,6 @@
 <!doctype html>
 <head>
-    <title>Threebox raycast example: highlight cube on mouse hover</title>
+    <title>Raycaster</title>
     <script src="../dist/threebox.js" type="text/javascript"></script>
     <script src="config.js"></script>
 
@@ -45,8 +45,11 @@
                 type: 'custom',
                 onAdd: function(map, mbxContext){
 
-                    window.threebox = new Threebox(map, mbxContext);
-                    threebox.setupDefaultLights();
+                    window.tb = new Threebox(
+                        map, 
+                        mbxContext,
+                        {defaultLights: true}
+                    );
 
                     // initialize geometry and material of our cube object
                     var geometry = new THREE.BoxGeometry(2000, 2000, 2000);
@@ -62,14 +65,10 @@
 
 
                     cube = new THREE.Mesh(geometry, redMaterial);
-                    cube.userData.name = "Red cube";
-
-                    threebox.addAtCoordinate(
-                        cube, 
-                        origin, 
-                        {preScale: 1}
-                    );
+                    cube = tb.Object3D({obj:cube, units:'meters'})
+                        .setCoords(origin);
                     
+                    tb.add(cube)
                     var highlighted = [];
 
                     //add mousing interactions
@@ -83,7 +82,7 @@
 
 
                         // calculate objects intersecting the picking ray
-                        var intersect = threebox.queryRenderedFeatures(e.point)[0]
+                        var intersect = tb.queryRenderedFeatures(e.point)[0]
                         var intersectionExists = typeof intersect == "object"
 
                         // if intersect exists, highlight it
@@ -98,13 +97,13 @@
                         // on state change, fire a repaint
                         if (active !== intersectionExists) {
                             active = intersectionExists;
-                            threebox.repaint();
+                            tb.repaint();
                         }
                     });
                 },
 
                 render: function(gl, matrix){
-                    threebox.update();
+                    tb.update();
                 }
             });
         });

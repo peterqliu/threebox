@@ -2,6 +2,9 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## 5.2.0 - 2019-01-28
+* Use acorn-node's option defaults, adds support for new ES features (https://github.com/browserify/detective/pull/81)
+
 ## 5.1.0 - 2018-02-28
 * Use acorn-node parser, which matches latest Node syntax support (https://github.com/browserify/detective/pull/78)
 * Add basic cli: `detective index.js` outputs dependency names (https://github.com/browserify/detective/pull/51)

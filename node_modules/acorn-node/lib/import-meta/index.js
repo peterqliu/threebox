@@ -14,7 +14,7 @@ var nextTokenIsDot = function (parser) {
 }
 
 module.exports = function(Parser) {
-  return (function (Parser) {
+  return /*@__PURE__*/(function (Parser) {
     function anonymous () {
       Parser.apply(this, arguments);
     }
@@ -36,6 +36,9 @@ module.exports = function(Parser) {
       node.property = this.parseIdent(true)
       if (node.property.name !== "meta") {
         this.raiseRecoverable(node.property.start, "The only valid meta property for import is import.meta")
+      }
+      if (this.containsEsc) {
+        this.raiseRecoverable(node.property.start, "\"meta\" in import.meta must not contain escape sequences")
       }
       return this.finishNode(node, "MetaProperty")
     };

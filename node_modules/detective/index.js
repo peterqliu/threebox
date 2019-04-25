@@ -6,20 +6,20 @@ var requireRe = /\brequire\b/;
 
 function parse (src, opts) {
     if (!opts) opts = {};
-    return acorn.parse(src, {
-        ecmaVersion: defined(opts.ecmaVersion, 9),
-        sourceType: defined(opts.sourceType, 'script'),
+    var acornOpts = {
         ranges: defined(opts.ranges, opts.range),
         locations: defined(opts.locations, opts.loc),
         allowReserved: defined(opts.allowReserved, true),
-        allowReturnOutsideFunction: defined(
-            opts.allowReturnOutsideFunction, true
-        ),
-        allowImportExportEverywhere: defined(
-            opts.allowImportExportEverywhere, true
-        ),
-        allowHashBang: defined(opts.allowHashBang, true)
-    });
+        allowImportExportEverywhere: defined(opts.allowImportExportEverywhere, false)
+    };
+
+    // Use acorn-node's defaults for the rest.
+    if (opts.ecmaVersion != null) acornOpts.ecmaVersion = opts.ecmaVersion;
+    if (opts.sourceType != null) acornOpts.sourceType = opts.sourceType;
+    if (opts.allowHashBang != null) acornOpts.allowHashBang = opts.allowHashBang;
+    if (opts.allowReturnOutsideFunction != null) acornOpts.allowReturnOutsideFunction = opts.allowReturnOutsideFunction;
+
+    return acorn.parse(src, acornOpts);
 }
 
 var exports = module.exports = function (src, opts) {

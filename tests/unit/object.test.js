@@ -37,67 +37,30 @@ function objectTest(instance){
 
     test('OBJECT _addMethods dynamic', function(t){
 
-        group = instance.objects._makeGroup(mesh, {});
-        var addedMethods = instance.objects._addMethods(group);
-        
-        t.equal(typeof addedMethods.setCoords, 'function');
-        t.equal(typeof addedMethods.followPath, 'function');
-        t.deepEqual(addedMethods.coordinates, [0,0,0]);
-        t.equal(addedMethods.type, 'Group');
-        t.end();
+        var sphere = instance.sphere({units: 'meters'});
 
-    })
-
-    test('OBJECT _addMethods dynamic', function(t){
-
-        group = instance.objects._makeGroup(mesh, {});
-        var addedMethods = instance.objects._addMethods(group);
-        
-        t.equal(typeof addedMethods.setCoords, 'function');
-        t.equal(typeof addedMethods.followPath, 'function');
-        t.deepEqual(addedMethods.coordinates, [0,0,0]);
-        t.equal(addedMethods.type, 'Group');
+        t.equal(sphere.type, 'Group');
+        t.equal(typeof sphere.followPath, 'function');
+        t.deepEqual(sphere.coordinates, [0,0,0]);
         t.end();
 
     })
 
     test('OBJECT setCoords updates both position and scale', function(t){
 
-        group = instance.objects._makeGroup(mesh, {scaleToLatitude:true});
-        var group = instance.objects._addMethods(group);
+        var sphere = instance.sphere({units: 'meters'});
         var newPosition = [0,-20];
+
+        sphere.setCoords(newPosition)
         var scaleFactor = instance.projectedUnitsPerMeter(newPosition[1]);
 
-        group
-            .setCoords(newPosition)
-            .add();
-
-        vector3Equals(t, group.position, instance.projectToWorld(newPosition));
-        t.equal(group.scale.x, scaleFactor);
-        t.deepEqual(group.coordinates, newPosition)
+        vector3Equals(t, sphere.position, instance.projectToWorld(newPosition));
+        t.equal(sphere.scale.x, scaleFactor);
+        t.deepEqual(sphere.coordinates, newPosition)
         t.end();
 
     })
 
-    // test('OBJECT SPHERE default settings', function(t) {   
-
-    //     var sphere = instance.sphere();
-    //     var defaults = instance.objects._defaults;
-    //     var object = sphere.children[0];
-
-    //     t.equal(object.geometry.type, 'SphereGeometry');
-    //     t.end();
-    // });
-
-    // test('OBJECT scaleToLatitude works', function(t) {   
-
-    //     var sphere = instance.sphere({scaleToLatitude: true});
-    //     console.log(sphere)
-    //     // var object = sphere.children[0];
-
-    //     // t.equal(object.geometry.type, 'SphereGeometry');
-    //     t.end();
-    // });
 }
 
     

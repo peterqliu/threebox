@@ -1,12 +1,11 @@
 var THREE = require("../three.js");
-var Constants = require("../../src/constants.js");
-var turf = require("@turf/turf");
-
+var Constants = require("./constants.js");
+var validate = require("./validate.js");
 
 var utils = {
 
     prettyPrintMatrix: function(uglymatrix){
-        for (var s=0;s<4;s++){
+        for (var s=0; s<4; s++){
             var quartet=[uglymatrix[s],
             uglymatrix[s+4],
             uglymatrix[s+8],
@@ -61,7 +60,16 @@ var utils = {
 
     //gimme degrees
     degreeify: function(rad){
-        return 360*rad/(Math.PI*2)
+        function convert(radians){
+            radians = radians || 0;
+            return radians * 360/(Math.PI*2)
+        }
+
+        if (typeof rad === 'object') {
+            return [convert(rad.x), convert(rad.y), convert(rad.z)]
+        }
+
+        else return convert(rad)
     },
 
     projectToWorld: function(coords){
@@ -129,40 +137,6 @@ var utils = {
     _flipMaterialSides: function(obj) {
 
     },
-
-    //convert a line/polygon to meter coordinates, normalized to the geometric center
-    // lnglatToMeters: function(coords){
-
-    //     var self = this;
-
-    //     const line = turf.lineString(coords);
-
-    //     //
-    //     var reference = turf.center(line);
-    //     reference.geometry.coordinates.push(0);
-
-    //     // reproject lnglat to meter offset from center
-    //     var reprojected = line.geometry.coordinates.map(
-    //         function(point){
-    //             point[2] = typeof point[2] === 'number' ? point[2] : 0;
-    //             var projectedPoint;
-
-    //             var pt = turf.point(point);
-    //             var bearing = self.radify(turf.bearing(reference, pt)-180);
-    //             var distance = turf.distance(reference, pt, {units:'kilometers'})*1000;
-
-    //             //compute offsets in three dimensions, in meters
-    //             var deltaX = Math.sin(bearing) * distance;
-    //             var deltaY = Math.cos(bearing) * distance;
-    //             var deltaZ = point[2] - reference.geometry.coordinates[2];
-    //             projectedPoint = [deltaX, deltaY, deltaZ]
-            
-    //             return projectedPoint
-    //         }
-    //     )
-
-    //     return {coordinates: reprojected, anchor: reference.geometry.coordinates}
-    // },
 
     // to improve precision, normalize a series of vector3's to their collective center, and move the resultant mesh to that center
     normalizeVertices(vertices) {
@@ -247,124 +221,6 @@ var utils = {
             })
 
             return output
-        },
-
-        validate: {
-
-            rotation: {
-                types: [Object, Number],
-                limits: [
-                    {
-                        keys: {
-                            allowable: ['x', 'y', 'z'],
-                            required: [],
-                            error: 'Invalid rotation property'
-                        },
-
-                        limits: {
-                            types: ['number'],
-                            error: 'Individual rotation values must be numbers'
-                        }
-                    }
-                ],
-                error: 'Rotation'
-            },
-
-            scale: {
-                types: [Object, Number],
-                limits: [
-                    {
-                        keys: {
-                            allowable: ['x', 'y', 'z'],
-                            required: [],
-                            error: 'Invalid scale property'
-                        },
-
-                        limits: {
-                            types: ['number'],
-                            min: 0
-                        }
-                    },
-                    {
-                        min: 0
-                    }
-                ]                
-            },
-
-            coords: {
-                types: [Array],
-                limits: [
-                    {
-                        length: {
-                            min: 2,
-                            max:3
-                        },
-
-                        limits: [
-                            {
-                                types: ['number'],
-                                min: -180,
-                                max: 180,
-                                error: 'Longitude must be between -180 and 180'
-                            },
-                            {
-                                types: ['number'],
-                                min: -90,
-                                max: 90,
-                                error: 'Latitude must be between -90 and 90'
-                            },
-                            {
-                            }
-                        ]
-                    }
-                ]
-            }
-        },
-
-        validator: function(input, rule) {
-
-            type = typeof input;
-
-            if (rule.types) {
-
-                var validType = rule.types.indexOf(type);
-
-                if (validType > -1) {
-
-                    if (rule.limits) {
-                        var subrule = rule.limits[validType]
-                        this.validator(input, subrule)
-                    }
-
-                    else {}
-                }
-
-                else console.log('bad type')
-            }
-
-
-            if (rule.length) {
-
-                if (input.length <= rule.length.max && input.length >= rule.length.min) {
-
-                }
-
-                else console.log('bad length')
-            }
-        },
-
-        functionChecks: {
-
-            rotation: function(input) {
-
-                if (input.constructor === Object) {
-                    var each = function(member){return member.constructor === number}
-                }
-
-                if (input.constructor === Number) {
-
-                }
-            }
         }
     },
 
@@ -376,18 +232,23 @@ var utils = {
 
         for (key of Object.keys(defaults)){
 
-            //make sure required params are present
-            if (defaults[key] === null && !userInputs[key]) {
-                console.error(key + ' is required')
-                return;
+            if (userInputs[key] === undefined) {
+                //make sure required params are present
+                if (defaults[key] === null) {
+                    console.error(key + ' is required')
+                    return;
+                }
+    
+                else validatedOutput[key] = defaults[key]
+
             }
 
-            else validatedOutput[key] = userInputs[key] || defaults[key]
+            else validatedOutput[key] = userInputs[key]
         }
 
         return validatedOutput
     },
-
+    Validator: new validate(),
     exposedMethods: ['projectToWorld', 'projectedUnitsPerMeter', 'extend', 'unprojectFromWorld']
 }
 

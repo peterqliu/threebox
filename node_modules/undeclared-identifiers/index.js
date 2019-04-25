@@ -1,6 +1,6 @@
 var xtend = require('xtend')
 var acorn = require('acorn-node')
-var walk = require('acorn-node/walk')
+var dash = require('dash-ast')
 var getAssignedIdentifiers = require('get-assigned-identifiers')
 
 function visitFunction (node, state, ancestors) {
@@ -30,6 +30,12 @@ var scopeVisitor = {
   FunctionExpression: visitFunction,
   FunctionDeclaration: visitFunction,
   ArrowFunctionExpression: visitFunction,
+  ClassDeclaration: function (node, state, ancestors) {
+    var parent = getScopeNode(ancestors, 'const')
+    if (node.id) {
+      declareNames(parent, [node.id])
+    }
+  },
   ImportDeclaration: function (node, state, ancestors) {
     declareNames(ancestors[0] /* root */, getAssignedIdentifiers(node))
   },
@@ -41,11 +47,14 @@ var scopeVisitor = {
 var bindingVisitor = {
   Identifier: function (node, state, ancestors) {
     if (!state.identifiers) return
-    var parent = ancestors[ancestors.length - 2]
+    var parent = ancestors[ancestors.length - 1]
     if (parent.type === 'MemberExpression' && parent.property === node) return
+    if (parent.type === 'Property' && !parent.computed && parent.key === node) return
+    if (parent.type === 'MethodDefinition' && !parent.computed && parent.key === node) return
+    if (parent.type === 'LabeledStatement' && parent.label === node) return
     if (!has(state.undeclared, node.name)) {
       for (var i = ancestors.length - 1; i >= 0; i--) {
-        if (ancestors[i]._names !== undefined && ancestors[i]._names.indexOf(node.name) !== -1) {
+        if (ancestors[i]._names !== undefined && has(ancestors[i]._names, node.name)) {
           return
         }
       }
@@ -60,7 +69,7 @@ var bindingVisitor = {
       state.undeclaredProps[node.name + '.*'] = true
     }
   },
-  MemberExpression: function (node, state, ancestors) {
+  MemberExpression: function (node, state) {
     if (!state.properties) return
     if (node.object.type === 'Identifier' && has(state.undeclared, node.object.name)) {
       var prop = !node.computed && node.property.type === 'Identifier'
@@ -93,8 +102,19 @@ module.exports = function findUndeclared (src, opts) {
     ? src
     : acorn.parse(src)
 
-  walk.ancestor(ast, scopeVisitor)
-  walk.ancestor(ast, bindingVisitor, walk.base, state)
+  var parents = []
+  dash(ast, {
+    enter: function (node, parent) {
+      if (parent) parents.push(parent)
+      var visit = scopeVisitor[node.type]
+      if (visit) visit(node, state, parents)
+    },
+    leave: function (node, parent) {
+      var visit = bindingVisitor[node.type]
+      if (visit) visit(node, state, parents)
+      if (parent) parents.pop()
+    }
+  })
 
   return {
     identifiers: Object.keys(state.undeclared),
@@ -103,7 +123,7 @@ module.exports = function findUndeclared (src, opts) {
 }
 
 function getScopeNode (parents, kind) {
-  for (var i = parents.length - 2; i >= 0; i--) {
+  for (var i = parents.length - 1; i >= 0; i--) {
     if (parents[i].type === 'FunctionDeclaration' || parents[i].type === 'FunctionExpression' ||
         parents[i].type === 'ArrowFunctionExpression' || parents[i].type === 'Program') {
       return parents[i]
@@ -116,11 +136,10 @@ function getScopeNode (parents, kind) {
 
 function declareNames (node, names) {
   if (node._names === undefined) {
-    node._names = names.map(function (id) { return id.name })
-    return
+    node._names = Object.create(null)
   }
   for (var i = 0; i < names.length; i++) {
-    node._names.push(names[i].name)
+    node._names[names[i].name] = true
   }
 }
 

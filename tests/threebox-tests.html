@@ -4,12 +4,13 @@
     <script src="threebox-tests-bundle.js" type="text/javascript"></script>
     <script src="../examples/config.js"></script>
     <script src='../dist/threebox.js'></script>
-    <script src='https://api.mapbox.com/mapbox-gl-js/v0.50.0/mapbox-gl.js'></script>
-    <link href='https://api.mapbox.com/mapbox-gl-js/v0.50.0/mapbox-gl.css' rel='stylesheet' />
+    <script src='https://api.mapbox.com/mapbox-gl-js/v0.53.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v0.53.0/mapbox-gl.css' rel='stylesheet' />
 
     <script src='unit/material.test.js'></script>
     <script src='unit/utilities.test.js'></script>
     <script src='unit/object.test.js'></script>
+    <script src='unit/validate.test.js'></script>
 
     <style>
         body, html { 
@@ -35,10 +36,8 @@
           container: 'map',
           style: 'mapbox://styles/mapbox/streets-v8',
           center: [-122.4131, 37.7743],
-          zoom: 15.95,
-          pitch: 60,
-          heading: 41,
-          hash: true
+          zoom: 14,
+          pitch: 60
         });
 
         map.on('style.load', function() {
@@ -64,6 +63,7 @@
             materialTest(tb);
             objectTest(tb);
             utilitiesTest(tb);
+            validateTest(tb);
 
         }
 
@@ -82,7 +82,6 @@
 
             if(dX > allowableError || dY > allowableError || dZ > allowableError) {
                 t.fail("Vector3 Equivalence failed: (" +  input.x + ", " + input.y + ", " + input.z + ") expected: (" +  expected.x + ", " + expected.y + ", " + expected.z + ")");
-                console.log(dY);
             }
             t.pass("ok Vector3 equivalence");
         }

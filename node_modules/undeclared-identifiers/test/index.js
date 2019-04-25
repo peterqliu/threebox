@@ -82,6 +82,66 @@ test('function names', function (t) {
   t.end()
 })
 
+test('class names', function (t) {
+  t.deepEqual(find(`
+    class X {}
+    new X()
+  `), {
+    identifiers: [],
+    properties: []
+  })
+  t.deepEqual(find(`
+    class X extends Y {}
+    new X()
+  `), {
+    identifiers: ['Y'],
+    properties: []
+  })
+  t.deepEqual(find(`
+    class Y {}
+    class X extends Y {}
+    new X()
+  `), {
+    identifiers: [],
+    properties: []
+  })
+  t.end()
+})
+
+test('class methods', function (t) {
+  t.deepEqual(find(`
+    class X {
+      constructor() { u }
+      bar() { v }
+      static foo() { w }
+    }
+  `), {
+    identifiers: ['u', 'v', 'w'],
+    properties: []
+  })
+  t.end()
+})
+
+test('super', function (t) {
+  t.deepEqual(find(`
+    class X extends Y {
+      constructor() { super() }
+    }
+  `), {
+    identifiers: ['Y'],
+    properties: []
+  })
+  t.deepEqual(find(`
+    class X {
+      foo() { super.foo }
+    }
+  `), {
+    identifiers: [],
+    properties: []
+  })
+  t.end()
+})
+
 test('scope', function (t) {
   t.deepEqual(find(`
     function y () {
