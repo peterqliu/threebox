@@ -145,7 +145,7 @@ Threebox.prototype = {
     defaultLights: function(){
 
         this.scene.add( new THREE.AmbientLight( 0xffffff ) );
-        var sunlight = new THREE.DirectionalLight(0xffffff, 0.5);
+        var sunlight = new THREE.DirectionalLight(0xffffff, 0.25);
         sunlight.position.set(0,80000000,100000000);
         sunlight.matrixWorldNeedsUpdate = true;
         this.world.add(sunlight);
