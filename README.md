@@ -13,7 +13,7 @@ A three.js plugin for Mapbox GL JS, using the custom layer feature. Provides con
 
 Download the bundle from [`dist/threebox.js`](dist/threebox.js) and add include it in a `<script>` tag on your page.
 
-Several introductory examples are [here]([examples folder](https://github.com/peterqliu/threebox/tree/master/examples)). To run them, create a `config.js` file with your Mapbox access token, alongside and in the format of [the template](https://github.com/peterqliu/threebox/blob/master/examples/config_template.js).
+Several introductory examples are [here](https://github.com/peterqliu/threebox/tree/master/examples). To run them, create a `config.js` file with your Mapbox access token, alongside and in the format of [the template](https://github.com/peterqliu/threebox/blob/master/examples/config_template.js).
 
 [Documentation lives here](docs/Threebox.md).
 
