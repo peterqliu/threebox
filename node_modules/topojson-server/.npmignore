@@ -1,4 +1,0 @@
-*.sublime-*
-build/
-dist/*.zip
-test/
