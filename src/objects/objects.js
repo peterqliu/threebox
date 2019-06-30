@@ -1,5 +1,6 @@
 var utils = require("../utils/utils.js");
 var material = require("../utils/material.js");
+var THREE = require("../three.js");
 
 const AnimationManager = require("../animation/AnimationManager.js");
 
@@ -41,11 +42,11 @@ Objects.prototype = {
 
 	},
 
-	_addMethods: function(obj, static){
+	_addMethods: function(obj, fixed){
 
 		var root = this;
 
-		if (static) {
+		if (fixed) {
 
 		}
 
@@ -93,7 +94,7 @@ Objects.prototype = {
 
 		obj.add = function(){
 	        root.world.add(obj);
-	        if (!static) obj.set({position:obj.coordinates});
+	        if (!fixed) obj.set({position:obj.coordinates});
 	        return obj;
 		}
 
