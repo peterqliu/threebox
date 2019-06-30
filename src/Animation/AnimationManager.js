@@ -1,4 +1,4 @@
-var threebox = require('../Threebox.js');
+var threebox = require('../threebox.js');
 var utils = require("../utils/utils.js");
 var validate = require("../utils/validate.js");
 
