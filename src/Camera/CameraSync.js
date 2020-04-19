@@ -33,6 +33,9 @@ function CameraSync(map, camera, world) {
         .on('move', function() {
             _this.updateCamera()
         })
+	.on('pitch', function() {
+            _this.setupCamera();
+        })
         .on('resize', function(){
             _this.setupCamera();
         })
